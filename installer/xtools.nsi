@@ -24,8 +24,9 @@ Var DesktopCheckbox
 Var StartupCheckbox
 Var DesktopChoice
 Var StartupChoice
+!define XTOOLS_EXE "{{main_binary_name}}.exe"
 !define MUI_ABORTWARNING
-!define MUI_FINISHPAGE_RUN "$INSTDIR\{{main_binary_name}}.exe"
+!define MUI_FINISHPAGE_RUN "$INSTDIR\${XTOOLS_EXE}"
 !define MUI_FINISHPAGE_RUN_TEXT "启动 XTools"
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_DIRECTORY
@@ -111,8 +112,8 @@ FunctionEnd
 
 Section "XTools" SEC_MAIN
   SetShellVarContext current
-  ${If} ${FileExists} "$INSTDIR\{{main_binary_name}}.exe"
-    ExecWait '"$INSTDIR\{{main_binary_name}}.exe" --quit'
+  ${If} ${FileExists} "$INSTDIR\${XTOOLS_EXE}"
+    ExecWait '"$INSTDIR\${XTOOLS_EXE}" --quit'
     Sleep 500
   ${EndIf}
   SetOutPath "$INSTDIR"
@@ -124,16 +125,16 @@ Section "XTools" SEC_MAIN
   ${EndIf}
   WriteUninstaller "$INSTDIR\Uninstall.exe"
   CreateDirectory "$SMPROGRAMS\XTools"
-  CreateShortcut "$SMPROGRAMS\XTools\XTools.lnk" "$INSTDIR\{{main_binary_name}}.exe"
+  CreateShortcut "$SMPROGRAMS\XTools\XTools.lnk" "$INSTDIR\${XTOOLS_EXE}"
   ${If} $DesktopChoice == ${BST_CHECKED}
-    CreateShortcut "$DESKTOP\XTools.lnk" "$INSTDIR\{{main_binary_name}}.exe"
+    CreateShortcut "$DESKTOP\XTools.lnk" "$INSTDIR\${XTOOLS_EXE}"
   ${Else}
     Delete "$DESKTOP\XTools.lnk"
   ${EndIf}
   WriteRegStr HKCU "Software\XTools" "InstallDir" "$INSTDIR"
   ${If} $StartupChoice == ${BST_CHECKED}
     WriteRegDWORD HKCU "Software\XTools" "AutostartPreference" 1
-    WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "XTools" '$\"$INSTDIR\{{main_binary_name}}.exe$\" --autostart'
+    WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "XTools" '$\"$INSTDIR\${XTOOLS_EXE}$\" --autostart'
   ${Else}
     WriteRegDWORD HKCU "Software\XTools" "AutostartPreference" 0
     DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "XTools"
@@ -144,7 +145,7 @@ Section "XTools" SEC_MAIN
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\XTools" "DisplayVersion" "{{version}}"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\XTools" "Publisher" "Antique"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\XTools" "InstallLocation" "$INSTDIR"
-  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\XTools" "DisplayIcon" "$INSTDIR\{{main_binary_name}}.exe"
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\XTools" "DisplayIcon" "$INSTDIR\${XTOOLS_EXE}"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\XTools" "UninstallString" '$\"$INSTDIR\Uninstall.exe$\"'
   WriteRegDWORD HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\XTools" "NoModify" 1
   WriteRegDWORD HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\XTools" "NoRepair" 1
@@ -152,11 +153,11 @@ SectionEnd
 
 Section "Uninstall"
   SetShellVarContext current
-  ExecWait '"$INSTDIR\{{main_binary_name}}.exe" --quit'
+  ExecWait '"$INSTDIR\${XTOOLS_EXE}" --quit'
   StrCpy $0 0
   uninstall_retry:
   ClearErrors
-  Delete "$INSTDIR\{{main_binary_name}}.exe"
+  Delete "$INSTDIR\${XTOOLS_EXE}"
   ${If} ${Errors}
     IntOp $0 $0 + 1
     ${If} $0 < 20

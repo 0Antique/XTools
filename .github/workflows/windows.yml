@@ -34,6 +34,12 @@ jobs:
         run: cargo test --locked --manifest-path src-tauri/Cargo.toml
       - name: Native release and NSIS installer
         run: npm run tauri build
+      - name: Validate rendered installer paths
+        shell: pwsh
+        run: |
+          $templates = Get-ChildItem src-tauri/target/release/nsis -Recurse -Filter installer.nsi
+          if (!$templates) { throw 'Rendered NSIS template was not found' }
+          if (Select-String -LiteralPath $templates.FullName -Pattern '\{\{|\}\}') { throw 'Unexpanded template variable in NSIS installer' }
       - name: Collect installable artifacts
         shell: pwsh
         run: |

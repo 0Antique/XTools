@@ -51,7 +51,7 @@ cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check
 npm run tauri build
 ```
 
-NSIS 默认构建输出为 `src-tauri/target/release/bundle/nsis/XTools_0.1.0_x64-setup.exe`，发布副本可命名为 `XTools_Setup.exe`。本次构建的安装包约 **2.44 MiB**，不包含 WebView2 Runtime。
+NSIS 默认构建输出为 `src-tauri/target/release/bundle/nsis/XTools_0.1.0_x64-setup.exe`，发布副本可命名为 `XTools_Setup.exe`。本次构建的安装包约 **2.47 MiB**，不包含 WebView2 Runtime。
 
 此工作区可选使用便携构建工具。存在本机 `.tools` 时，先在 PowerShell 执行：
 
