@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "desktop",
+  "description": "Local desktop windows; no network access or arbitrary shell execution.",
+  "windows": ["launcher", "rename", "settings"],
+  "permissions": ["core:default", "dialog:allow-open", "core:window:allow-hide", "core:window:allow-start-dragging", "core:event:default"]
+}

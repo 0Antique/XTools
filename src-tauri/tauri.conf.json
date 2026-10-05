@@ -1,0 +1,45 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "XTools",
+  "version": "0.1.0",
+  "identifier": "com.antique.xtools",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [{
+      "label": "launcher",
+      "title": "XTools",
+      "width": 780,
+      "height": 520,
+      "minWidth": 680,
+      "minHeight": 440,
+      "decorations": false,
+      "resizable": false,
+      "visible": false,
+      "skipTaskbar": true,
+      "alwaysOnTop": true,
+      "shadow": true,
+      "backgroundColor": "#FAFAFA"
+    }],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost data:; connect-src ipc: http://ipc.localhost; object-src 'none'; base-uri 'self'; frame-src 'none'",
+      "devCsp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost data:; connect-src ipc: http://ipc.localhost http://localhost:1420 ws://localhost:1420 http://127.0.0.1:1420 ws://127.0.0.1:1420; object-src 'none'; base-uri 'self'; frame-src 'none'",
+      "assetProtocol": {"enable": true, "scope": ["$DATA/XTools/cache/icons/**", "$DATA/XTools/clipboard/images/**"]}
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "icon": ["icons/icon.ico", "icons/icon.png"],
+    "publisher": "Antique",
+    "shortDescription": "离线 Windows 效率工具",
+    "windows": {
+      "webviewInstallMode": {"type": "skip"},
+      "nsis": {"installMode": "currentUser", "languages": ["SimpChinese", "English"], "displayLanguageSelector": true, "template": "../installer/xtools.nsi"}
+    }
+  }
+}
