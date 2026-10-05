@@ -84,6 +84,9 @@ $app=$null
 try{
   Run-Installer '/S /NODESKTOP /NOAUTOSTART'
   Check 'custom D path with spaces' (Test-Path -LiteralPath (Join-Path $install 'xtools.exe')) $install
+  $taskExpectedVersion = (Get-Content -LiteralPath (Join-Path $repo 'package.json') -Raw | ConvertFrom-Json).version
+  $taskInstalledVersion = (Get-Item -LiteralPath (Join-Path $install 'xtools.exe')).VersionInfo.ProductVersion
+  Check 'installed executable version' ($taskInstalledVersion -eq $taskExpectedVersion) $taskInstalledVersion
   Check 'no desktop selected' (!(Test-Path -LiteralPath $desktop)) 'desktop absent'
   Check 'start menu created' (Test-Path -LiteralPath $programLink) 'start menu present'
   $shell=[Activator]::CreateInstance([type]::GetTypeFromProgID('WScript.Shell'))

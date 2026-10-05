@@ -23,6 +23,8 @@ XTools 不做全盘文件搜索，不递归重命名文件夹内容。运行时�
 
 ## 安装与使用
 
+[下载 XTools 0.2.0 安装器](https://github.com/0Antique/XTools/releases/download/v0.2.0/XTools_Setup.exe)，或查看 [Release 页面](https://github.com/0Antique/XTools/releases/tag/v0.2.0)。附件只有 `XTools_Setup.exe`，约 2.66 MiB，下载后直接运行。正式附件已核对 SHA256 并完成隔离安装/卸载检查。
+
 最低 Windows 10 版本为 1703，因为 Per-Monitor DPI Awareness V2 使用的 [SetProcessDpiAwarenessContext API](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setprocessdpiawarenesscontext) 从该版本起可用。安装器检查系统版本和 build，阻止早期 Windows 10 安装。
 
 系统需要已安装 **Microsoft Edge WebView2 Runtime**。安装程序会检查此条件；缺少运行时会给出提示并停止，**不会联网下载**。需预先准备 WebView2 时，可使用 Microsoft 提供的离线安装程序。

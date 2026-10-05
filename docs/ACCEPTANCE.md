@@ -129,6 +129,7 @@ npm run tauri build
 - [x] 真实微信复制：来源 weixin.exe，CF_HDROP 单文件、未提供 PNG 注册格式；捕获为 image，285 × 113，独立 PNG 保存并重新打开数据库读取成功。日志未记录正文、私人路径或图像数据。PowerPoint PNG 格式捕获另验证为 128 × 94。
 - [x] 规则标签 #52657D / #EAF3FF 对比度 5.34:1，输入框占位 #64748B / #FFFFFF 对比度 4.76:1；重命名页面视觉检查通过。
 - [x] NSIS 安装器在 D 盘含空格隔离目录安装/卸载；桌面快捷方式可选、开机启动选择和一次性标记、运行中卸载、32/64 位注册表清理、保留 AppData 和非应用文件均通过。
+- [x] 最终本地安装器 32/32 检查通过。另用真实 0.1.0 安装包在同一隔离目录运行中升级到 0.2.0；共 40/40 检查通过。自定义快捷键、历史限额、最近使用设置、文本/图片收藏、PNG 字节、撤销批次与路径记录保持一致，二次启动转交给已有进程。升级数据为隔离夹具，未改动日常 AppData。
 - [x] 未创建桌面快捷方式时，开始菜单快捷方式的 System.AppUserModel.ID 实测为 com.antique.xtools。
 - [x] 安装身份存在时，生产 WinRT 通知发送器的原生 short 通知被 Windows API 接受；标题为“颜色已复制”，测试正文 #FFFFFF。实际取色后显示/取消/复制失败的完整链路见待验收项。
 - [x] 安装版 WebView 已渲染新版悬浮按钮、文案和四向提示；真实搜索 color 返回屏幕取色入口。
@@ -150,7 +151,7 @@ npm run tauri build
 - [ ] A08–A13：所有原生窗口的外部点击/悬浮、文件对话框、主屏切换、多屏与混合 DPI 操作。
 - [ ] A14–A18：真实前台 Explorer 四文件端到端导入、替换、执行中保护；Windows 11 活动标签页。代码对隐藏/歧义视图拒绝导入，未将 Windows 10 原型当作 Windows 11 已通过。
 - [ ] A21：至少 60 秒实际快速移动，平均 FPS/P95/跟随延迟/CPU，以及 100 次开启取消的 GDI/句柄测量。没有根据 timer 数值宣称性能达标。
-- [ ] A22：完整 V1 安装包升级到 V2 后各类历史、收藏与撤销数据保留。
+- [ ] A22 界面复核：安装器运行中升级和各类数据记录保留已通过；升级后的图片显示/复制及撤销入口仍需真实界面操作确认。
 
 Windows.Graphics.Capture 在本机返回 FrameArrived timeout，点击几何不可用。按 Computer Use 的恢复指引保留真实界面验收的限制；没有使用自制输入注入绕过该限制。可访问性检查和浏览器检查分别记录为对应层面的证据。
 
@@ -174,3 +175,14 @@ cargo run --manifest-path src-tauri/Cargo.toml --example picker_gdi_benchmark
 ~~~~
 
 安装脚本会备份并恢复 XTools 的注册表项和快捷方式；测试前通过 --quit 关闭运行中的 XTools，避免单实例将测试转交给日常实例。测试完成后可重新启动原程序。
+
+### 正式发布与下载验证（2026-10-06）
+
+- [x] A23：[v0.2.0 Release](https://github.com/0Antique/XTools/releases/tag/v0.2.0) 已发布，手动上传资产只有 [XTools_Setup.exe](https://github.com/0Antique/XTools/releases/download/v0.2.0/XTools_Setup.exe)。文件大小 2,786,871 字节，约 2.66 MiB。
+- 发布标签实际指向已验证的功能提交 d3827614ef1e38a250f6a781330655364cca87d6。随后文档提交补充下载证据，不改变发布代码。
+- [Release 工作流](https://github.com/0Antique/XTools/actions/runs/37339151033) 成功；该功能提交的 [PR Windows CI](https://github.com/0Antique/XTools/actions/runs/37338990655) 和 [分支 Windows CI](https://github.com/0Antique/XTools/actions/runs/37338840205) 均成功。
+- 正式构建产物完成 33/33 安装/卸载检查，包括安装后的 EXE 实际版本 0.2.0、未创建桌面快捷方式时的通知身份、含空格目录、开机启动选项、运行中卸载、注册表清理和用户数据保留。随后从 Release 直接下载的 EXE 与这份已测产物逐字节哈希一致；无需解压。
+- Release 安装器 SHA256：`B818FE0CEB9F73E8C8E2FC891AED706E056EAB3CBC008F883F06A6C6737C2EE4`。GitHub 资产 digest、Release 正文和下载文件计算结果一致。
+- 本地下载副本为 artifacts/v0.2.0/XTools_Setup.exe。可用 `scripts/installer-smoke.ps1 -Installer <下载的 EXE 绝对路径>` 复测；此脚本需要先退出日常 XTools。
+
+发布成功不等于上文所有原生交互与平台矩阵已验收。PR 保留草稿状态，等待对应环境补充证据。
