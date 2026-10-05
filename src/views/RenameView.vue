@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import { open } from '@tauri-apps/plugin-dialog';
+import { listen } from '@tauri-apps/api/event';
+import { ContextQueue, type RenameContext } from '../lib/rename-context';
 import type { UnlistenFn } from '@tauri-apps/api/event';
 import { Files, FolderPlus, Upload, Undo2, X, ArrowRight, FolderPen, LoaderCircle, AlertCircle, CheckCircle2, RotateCcw, Hash, ChevronDown } from 'lucide-vue-next';
 import TitleBar from '../components/TitleBar.vue';
@@ -30,6 +31,29 @@ let previewTimer: ReturnType<typeof setTimeout> | undefined;
 let previewRevision = 0;
 let unlisten: UnlistenFn | undefined;
 let disposed = false;
+let contextListener: UnlistenFn | undefined;
+const contextQueue = new ContextQueue();
+function applyContext() {
+  const context = contextQueue.take(busy.value);
+  if (!context) return;
+  confirming.value = undefined;
+  if (context.status === "ready" && context.paths.length) {
+    ++previewRevision;
+    previews.value = []; previewInputPaths.value = [];
+    Object.assign(rules, defaults());
+    paths.value = [...context.paths];
+    ui.notify(`已带入资源管理器选中的 ${context.paths.length} 个项目`);
+  } else if (context.message) ui.notify(context.message, "error");
+}
+async function readContext() {
+  try {
+    const context = await command<RenameContext | null>("get_rename_context");
+    if (!disposed && context && contextQueue.receive(context)) {
+      await command("ack_rename_context", { requestId: context.requestId });
+      applyContext();
+    }
+  } catch (e) { ui.fail(e); }
+}
 
 function addPaths(items: string[]) {
   if (busy.value) return;
@@ -39,7 +63,7 @@ function addPaths(items: string[]) {
 }
 async function select(directory: boolean) {
   try {
-    const selection = await open({ multiple: true, directory, title: directory ? '选择要重命名的文件夹（不递归）' : '选择要重命名的文件' });
+    const selection = await command<string[]>('select_rename_paths', { directory });
     if (selection) addPaths(Array.isArray(selection) ? selection : [selection]);
   } catch (e) { ui.fail(e); }
 }
@@ -81,13 +105,13 @@ async function execute() {
     await refreshHistory();
     ui.notify(`已重命名 ${count} 个项目，可撤销上一次操作`);
   } catch (e) { ui.fail(e); confirming.value = undefined; schedulePreview(); }
-  finally { busy.value = false; }
+  finally { busy.value = false; applyContext(); }
 }
 async function undo() {
   busy.value = true;
   try { const count = await command<number>('undo_rename'); confirming.value = undefined; paths.value = []; await refreshHistory(); ui.notify(`已还原 ${count} 个项目的名称`); }
   catch (e) { ui.fail(e); confirming.value = undefined; }
-  finally { busy.value = false; }
+  finally { busy.value = false; applyContext(); }
 }
 function keydown(event: KeyboardEvent) {
   if (event.key === 'Escape' && !confirming.value && !busy.value) { event.preventDefault(); void hideWindow().catch(ui.fail); }
@@ -96,6 +120,9 @@ onMounted(async () => {
   document.addEventListener('keydown', keydown);
   await refreshHistory();
   if (desktop) {
+    const listenerContext = await listen("rename-context-changed", () => { void readContext(); });
+    if (disposed) listenerContext(); else contextListener = listenerContext;
+    await readContext();
     const listener = await getCurrentWindow().onDragDropEvent((event) => {
       if (event.payload.type === 'enter' || event.payload.type === 'over') dragging.value = true;
       else dragging.value = false;
@@ -104,14 +131,14 @@ onMounted(async () => {
     if (disposed) listener?.(); else unlisten = listener;
   }
 });
-onUnmounted(() => { disposed = true; document.removeEventListener('keydown', keydown); if (previewTimer) clearTimeout(previewTimer); ++previewRevision; unlisten?.(); });
+onUnmounted(() => { disposed = true; document.removeEventListener('keydown', keydown); if (previewTimer) clearTimeout(previewTimer); ++previewRevision; unlisten?.(); contextListener?.(); });
 </script>
 
 <template>
   <TitleBar title="批量重命名" standalone />
   <div class="rename-body" :class="{ dragging }" @dragover.prevent @drop.prevent="!desktop && ui.notify('拖入文件需要在 XTools 桌面版中使用。', 'error')">
     <DesktopNotice v-if="!desktop" />
-    <div class="rename-heading"><div><h1>让文件，井然有序</h1><p>添加文件或文件夹，调整规则，预览后一次完成。</p></div><button class="button button-small" :disabled="!desktop || busy || !historyAvailable" @click="confirming = 'undo'"><Undo2 :size="15" />撤销上一次</button></div>
+    <div class="rename-heading"><div><h1>批量重命名</h1></div><button class="button button-small" :disabled="!desktop || busy || !historyAvailable" @click="confirming = 'undo'"><Undo2 :size="15" />撤销上一次</button></div>
     <div class="rename-workspace"><aside class="rename-rules scroll-area"><div class="rule-heading"><h2>命名规则</h2><button class="icon-button" title="重置规则" aria-label="重置规则" :disabled="busy" @click="Object.assign(rules, defaults())"><RotateCcw :size="15" /></button></div><fieldset :disabled="busy || !desktop"><div class="rule-group"><h3><span class="rule-number">01</span>添加文本</h3><label class="field-label">前缀<input v-model="rules.prefix" type="text" placeholder="例如：旅行_" /></label><label class="field-label">后缀<input v-model="rules.suffix" type="text" placeholder="例如：_精选" /></label></div><div class="rule-group"><h3><span class="rule-number">02</span>查找与替换</h3><label class="field-label">查找<input v-model="rules.find" type="text" placeholder="原名称中的文字" /></label><label class="field-label">替换为<input v-model="rules.replace" type="text" placeholder="留空即删除匹配内容" /></label></div><div class="rule-group"><h3><span class="rule-number">03</span>字符与大小写</h3><label class="field-label">删除指定字符<input v-model="rules.deleteChars" type="text" placeholder="例如：空格、括号等" /></label><label class="field-label">大小写<select v-model="rules.caseMode"><option value="keep">保持原样</option><option value="lower">全部小写</option><option value="upper">全部大写</option><option value="title">单词首字母大写</option></select></label></div><div class="rule-group numbering-group"><label class="numbering-toggle"><span><span class="rule-number">04</span>自动编号</span><input v-model="rules.numbering" type="checkbox" /></label><div v-if="rules.numbering" class="numbering-fields"><div class="three-fields"><label class="field-label">起始值<input v-model.number="rules.numberStart" type="number" min="0" max="2147483647" step="1" /></label><label class="field-label">步长<input v-model.number="rules.numberStep" type="number" min="1" max="2147483647" step="1" /></label><label class="field-label">位数<input v-model.number="rules.numberWidth" type="number" min="1" max="12" step="1" /></label></div><div class="two-fields"><label class="field-label">位置<select v-model="rules.numberPosition"><option value="prefix">名称前</option><option value="suffix">名称后</option></select></label><label class="field-label">分隔符<input v-model="rules.numberSeparator" type="text" placeholder="_" /></label></div><p class="field-note"><Hash :size="12" />按照列表顺序依次编号</p></div></div></fieldset></aside>
     <section class="rename-preview-panel"><div class="preview-toolbar"><span><strong>{{ paths.length }}</strong> 个项目<span class="preview-quiet"> · 不递归</span></span><div class="preview-toolbar-actions"><button class="button button-small" :disabled="!desktop || busy" @click="select(false)"><Files :size="14" />添加文件</button><button class="button button-small" :disabled="!desktop || busy" @click="select(true)"><FolderPlus :size="14" />文件夹</button><button v-if="paths.length" class="icon-button" title="移除所有项目" aria-label="移除所有项目" :disabled="busy" @click="paths = []"><X :size="16" /></button></div></div>
       <div v-if="!paths.length" class="rename-dropzone"><div class="dropzone-icon"><Upload :size="29" :stroke-width="1.4" /></div><h2>把文件或文件夹拖到这里</h2><p>支持混合添加，只修改所选项目的名称</p><div class="dropzone-buttons"><button class="button" :disabled="!desktop || busy" @click="select(false)">选择文件</button><button class="button" :disabled="!desktop || busy" @click="select(true)">选择文件夹</button></div><span class="dropzone-note">文件扩展名会保留 · 子目录内容不受影响</span></div>

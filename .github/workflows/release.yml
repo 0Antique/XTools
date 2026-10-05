@@ -1,0 +1,97 @@
+name: Release Windows installer
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing version tag (for example v0.2.0)
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: windows-2022
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+      sha256: ${{ steps.collect.outputs.sha256 }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: npm ci
+      - id: version
+        name: Validate version and tag
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          node scripts/validate-version.mjs $env:RELEASE_TAG
+          if ($LASTEXITCODE) { throw 'Version mismatch' }
+          "tag=$env:RELEASE_TAG" >> $env:GITHUB_OUTPUT
+      - run: npm test
+      - run: cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
+      - run: cargo test --locked --manifest-path src-tauri/Cargo.toml
+      - run: cargo clippy --locked --manifest-path src-tauri/Cargo.toml --all-targets -- -D clippy::correctness
+      - run: npm run tauri build
+      - id: collect
+        name: Collect the single versioned installer
+        shell: pwsh
+        run: |
+          $version = (Get-Content package.json | ConvertFrom-Json).version
+          $installers = @(Get-ChildItem "src-tauri/target/release/bundle/nsis/XTools_${version}_x64-setup.exe")
+          if ($installers.Count -ne 1) { throw 'Exactly one installer is required' }
+          $templates = Get-ChildItem src-tauri/target/release/nsis -Recurse -Filter installer.nsi
+          if (!$templates -or (Select-String -LiteralPath $templates.FullName -Pattern '\{\{|\}\}')) { throw 'Invalid rendered NSIS template' }
+          New-Item -ItemType Directory -Force release | Out-Null
+          Copy-Item -LiteralPath $installers[0].FullName release/XTools_Setup.exe
+          "sha256=$((Get-FileHash release/XTools_Setup.exe).Hash)" >> $env:GITHUB_OUTPUT
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-installer
+          path: release/XTools_Setup.exe
+          if-no-files-found: error
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.build.outputs.tag }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-installer
+          path: release
+      - name: Publish installer EXE
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.build.outputs.tag }}
+          INSTALLER_SHA256: ${{ needs.build.outputs.sha256 }}
+        shell: bash
+        run: |
+          cat docs/v2/RELEASE_NOTES.md > release-notes.md
+          printf '\nInstaller SHA256: `%s`\n' "$INSTALLER_SHA256" >> release-notes.md
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release edit "$RELEASE_TAG" --title "XTools $RELEASE_TAG" --notes-file release-notes.md
+            gh release upload "$RELEASE_TAG" release/XTools_Setup.exe --clobber
+          else
+            gh release create "$RELEASE_TAG" release/XTools_Setup.exe --verify-tag --title "XTools $RELEASE_TAG" --notes-file release-notes.md
+          fi
+          assets=$(gh release view "$RELEASE_TAG" --json assets --jq '[.assets[].name] | sort | join(",")')
+          test "$assets" = "XTools_Setup.exe"

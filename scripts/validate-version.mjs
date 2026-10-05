@@ -1,0 +1,11 @@
+import fs from 'node:fs';
+const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+const lock = JSON.parse(fs.readFileSync('package-lock.json', 'utf8'));
+const tauri = JSON.parse(fs.readFileSync('src-tauri/tauri.conf.json', 'utf8'));
+const cargo = fs.readFileSync('src-tauri/Cargo.toml', 'utf8').match(/^version = "([^"]+)"/m)?.[1];
+const cargoLock = fs.readFileSync('src-tauri/Cargo.lock', 'utf8').match(/name = "xtools"\r?\nversion = "([^"]+)"/)?.[1];
+const about = fs.readFileSync('src/views/SettingsView.vue', 'utf8');
+if ([lock.version, lock.packages[''].version, tauri.version, cargo, cargoLock].some(v => v !== pkg.version) || !about.includes(pkg.version)) throw new Error('Package/Cargo/Tauri/about versions must match');
+const tag = process.argv[2];
+if (tag && tag !== `v${pkg.version}`) throw new Error(`Tag ${tag} does not match v${pkg.version}`);
+console.log(pkg.version);

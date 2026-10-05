@@ -113,3 +113,64 @@ npm run tauri build
 实现只扫描应用来源，不索引普通文件或遍历全盘；重命名不递归；剪贴板 Enter 只重新复制；取色不保存截图；运行时没有账号、云同步、遥测或主动网络请求。数据位于 `%APPDATA%\XTools`，与安装目录分离。
 
 本记录不将代码具备的行为自动记为通过；后续补充手工结果时记录系统版本、显示器缩放、测试操作与实际结果。
+
+
+## V2 / 0.2.0 验收记录
+
+本次按本地 XTools_V2_Development_Spec.md 实现 V2-01 至 V2-11。以下状态区分实现、自动验证和真实系统集成；未勾选的项目仍需对应环境验收。
+
+验证环境：Windows 10 Pro 22H2，build 19045，x64；微信 4.1.15.13。版本保持原应用标识 com.antique.xtools 和 AppData 数据目录；数据库结构不变。
+
+### 已有证据
+
+- [x] 28 项 Rust 核心测试，包括内容解码、微信临时路径边界、旧记录合并与收藏保留、原图删除后管理副本仍有效、自然排序、清除旧选择和迟到请求拒绝；V1 的重命名冲突、两阶段执行、回滚和撤销测试继续通过。
+- [x] 前端类型检查、生产构建、格式检查、Clippy correctness 检查和版本一致性检查通过。Clippy 剩余建议来自 V1 图标模块的代码风格。
+- [x] 前端导航与调用上下文队列测试通过；浏览器交互检查覆盖实际卡片布局、文本光标编辑、原生悬浮调用失败恢复、首开四文件上下文、执行中保护、新批次替换及规则重置。该浏览器检查使用 IPC mock，不作为 Windows 集成通过的证据。
+- [x] 真实微信复制：来源 weixin.exe，CF_HDROP 单文件、未提供 PNG 注册格式；捕获为 image，285 × 113，独立 PNG 保存并重新打开数据库读取成功。日志未记录正文、私人路径或图像数据。PowerPoint PNG 格式捕获另验证为 128 × 94。
+- [x] 规则标签 #52657D / #EAF3FF 对比度 5.34:1，输入框占位 #64748B / #FFFFFF 对比度 4.76:1；重命名页面视觉检查通过。
+- [x] NSIS 安装器在 D 盘含空格隔离目录安装/卸载；桌面快捷方式可选、开机启动选择和一次性标记、运行中卸载、32/64 位注册表清理、保留 AppData 和非应用文件均通过。
+- [x] 未创建桌面快捷方式时，开始菜单快捷方式的 System.AppUserModel.ID 实测为 com.antique.xtools。
+- [x] 安装身份存在时，生产 WinRT 通知发送器的原生 short 通知被 Windows API 接受；标题为“颜色已复制”，测试正文 #FFFFFF。实际取色后显示/取消/复制失败的完整链路见待验收项。
+- [x] 安装版 WebView 已渲染新版悬浮按钮、文案和四向提示；真实搜索 color 返回屏幕取色入口。
+- [x] 原生 Explorer COM 原型：空选择返回 empty，不误带入父目录。四文件正向读取仍等待人工选择输入。
+
+### 取色测量与实现
+
+同设备的 read-only GDI 基准，预热 100 次，随后每路径 1000 次：V1 BitBlt + 81 次 GetPixel 平均 10.26 ms，P95 14.43 ms；V2 BitBlt + GdiFlush + DIB 内存访问平均 9.83 ms，P95 14.71 ms。平均改善约 4%，P95 未改善；这个微基准不包含窗口绘制、鼠标移动、CPU 和端到端帧率，不能作为 55–60 FPS 达标证明。
+
+实现包括持久化 DIB、StretchBlt 放大、双缓冲、库存画刷、显示器缓存、活动时 16 ms/静止时 32 ms 调度、相同像素跳过绘制，以及避免每帧重置 timer。点击确认仍重新采样。可设置 XTOOLS_PICKER_METRICS=1 在隔离测试进程中写入 logs/picker-metrics.json；只含帧间隔与耗时，不含坐标或像素内容。
+
+通知使用 Tauri 插件底层的 tauri-winrt-notification 直接发送，以明确指定 Short 并记录发送错误：当前 tauri-plugin-notification 的桌面包装会丢弃后台 show 错误。发送仍在关闭浮窗、释放钩子和绘图资源之后。
+
+### 尚需真实环境验收
+
+- [ ] A01/A02：安装版中观察真实微信缩略图，重新复制/粘贴，重启和原临时文件消失后的完整操作。
+- [ ] A03：资源管理器复制单个 PNG 和多文件的真实回写语义（分类约束和原生文件回写代码已实现）。
+- [ ] A04/A05：真正取色后 Toast 外观与实际 HEX、取消/复制失败无成功通知、无桌面快捷方式的完整操作。
+- [ ] A08–A13：所有原生窗口的外部点击/悬浮、文件对话框、主屏切换、多屏与混合 DPI 操作。
+- [ ] A14–A18：真实前台 Explorer 四文件端到端导入、替换、执行中保护；Windows 11 活动标签页。代码对隐藏/歧义视图拒绝导入，未将 Windows 10 原型当作 Windows 11 已通过。
+- [ ] A21：至少 60 秒实际快速移动，平均 FPS/P95/跟随延迟/CPU，以及 100 次开启取消的 GDI/句柄测量。没有根据 timer 数值宣称性能达标。
+- [ ] A22：完整 V1 安装包升级到 V2 后各类历史、收藏与撤销数据保留。
+
+Windows.Graphics.Capture 在本机返回 FrameArrived timeout，点击几何不可用。按 Computer Use 的恢复指引保留真实界面验收的限制；没有使用自制输入注入绕过该限制。可访问性检查和浏览器检查分别记录为对应层面的证据。
+
+### 复现命令
+
+~~~~powershell
+npm ci
+npm test
+npm run build
+node scripts/validate-version.mjs v0.2.0
+cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check
+cargo test --locked --manifest-path src-tauri/Cargo.toml
+cargo clippy --locked --manifest-path src-tauri/Cargo.toml --all-targets -- -D clippy::correctness
+npm run tauri build
+.\scripts\installer-smoke.ps1
+# 在微信复制测试图片后（输出目录须为隔离目录）
+cargo run --manifest-path src-tauri/Cargo.toml --example clipboard_probe -- .tools/clipboard-probe
+# 在资源管理器中选中隔离测试文件，直接运行无参数原型；可另指定测试窗口标题
+cargo run --manifest-path src-tauri/Cargo.toml --example explorer_probe -- v2-four-files
+cargo run --manifest-path src-tauri/Cargo.toml --example picker_gdi_benchmark
+~~~~
+
+安装脚本会备份并恢复 XTools 的注册表项和快捷方式；测试前通过 --quit 关闭运行中的 XTools，避免单实例将测试转交给日常实例。测试完成后可重新启动原程序。

@@ -1,4 +1,4 @@
-name: Windows V1
+name: Windows verification
 on:
   push:
     branches: [master, 'codex/**']
@@ -26,6 +26,10 @@ jobs:
           workspaces: src-tauri
       - name: Install frontend dependencies
         run: npm ci
+      - name: Version consistency
+        run: node scripts/validate-version.mjs
+      - name: Frontend behavior tests
+        run: npm test
       - name: Frontend type check and build
         run: npm run build
       - name: Rust format
@@ -44,10 +48,11 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force artifacts | Out-Null
-          Copy-Item src-tauri/target/release/bundle/nsis/*-setup.exe artifacts/XTools_Setup.exe
+          $version = (Get-Content package.json | ConvertFrom-Json).version
+          Copy-Item "src-tauri/target/release/bundle/nsis/XTools_${version}_x64-setup.exe" artifacts/XTools_Setup.exe
           Copy-Item src-tauri/target/release/xtools.exe artifacts/XTools.exe
           Get-FileHash artifacts/*.exe -Algorithm SHA256 | ForEach-Object { "$($_.Hash)  $([IO.Path]::GetFileName($_.Path))" } | Set-Content artifacts/SHA256SUMS.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: XTools-0.1.0-windows-x64
+          name: XTools-windows-x64
           path: artifacts/
