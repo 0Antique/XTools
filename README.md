@@ -23,9 +23,9 @@ XTools 不做全盘文件搜索，不递归重命名文件夹内容。运行时�
 
 ## 安装与使用
 
-[下载 XTools 0.2.0 安装器](https://github.com/0Antique/XTools/releases/download/v0.2.0/XTools_Setup.exe)，或查看 [Release 页面](https://github.com/0Antique/XTools/releases/tag/v0.2.0)。附件只有 `XTools_Setup.exe`，约 2.66 MiB，下载后直接运行。正式附件已核对 SHA256 并完成隔离安装/卸载检查。
+[下载 XTools V2.1 安装器](https://github.com/0Antique/XTools/releases/download/v2.1/XTools_Setup.exe)，或查看 [Release 页面](https://github.com/0Antique/XTools/releases/tag/v2.1)。附件只有 `XTools_Setup.exe`，约 2.66 MiB，下载后直接运行。正式附件已核对 SHA256 并完成隔离安装/卸载检查。
 
-V2.1 去掉了工具卡片的字母提示和首页底部整行，并将设置移到右上角悬浮按钮左侧。发布标签为 `v2.1`，工程版本为 `2.1.0`；下载入口将在正式附件验证后更新。
+V2.1 去掉了工具卡片的字母提示和首页底部整行，并将设置移到右上角悬浮按钮左侧。发布标签为 `v2.1`，工程版本为 `2.1.0`。
 
 最低 Windows 10 版本为 1703，因为 Per-Monitor DPI Awareness V2 使用的 [SetProcessDpiAwarenessContext API](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setprocessdpiawarenesscontext) 从该版本起可用。安装器检查系统版本和 build，阻止早期 Windows 10 安装。
 
