@@ -64,7 +64,7 @@
 
 > 从资源管理器带入新批次会替换列表并重置规则；手动添加和拖入会追加到当前列表。
 
-![img](file:///C:/Users/Antique/AppData/Roaming/Typora/typora-user-images/1791275509950.png)
+![1791276401046](assets/1791276401046.png)
 
 ### 设置与悬浮
 
