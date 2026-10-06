@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-import { Search, X, Settings, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, CornerDownLeft, LoaderCircle, AppWindow } from 'lucide-vue-next';
+import { Search, X, CornerDownLeft, LoaderCircle, AppWindow } from 'lucide-vue-next';
 import TitleBar from '../components/TitleBar.vue';
 import AppIcon from '../components/AppIcon.vue';
 import DesktopNotice from '../components/DesktopNotice.vue';
@@ -93,7 +93,7 @@ onUnmounted(() => { disposed = true; document.removeEventListener('keydown', key
     <div v-if="store.error" class="inline-error" role="alert">{{ store.error }}<button class="text-button" @click="store.search">重试</button></div>
     <template v-if="!store.query.trim()">
       <section v-if="settings.settings.showRecent" class="recent-section"><div class="section-label"><span>最近使用</span></div><div v-if="recent.length" class="recent-grid"><button v-for="(item, index) in recent" :key="item.id" class="recent-card" :class="{ selected: store.selected === index }" :data-selected="store.selected === index" :disabled="launching" @click="activate(item)" @mouseenter="store.selected = index"><AppIcon :item="item" /><span class="recent-name" :title="item.name">{{ item.name }}</span></button></div><div v-else class="recent-empty"><AppWindow :size="24" :stroke-width="1.5" /><div><p>{{ desktop ? '常用应用，从第一次启动开始' : '最近使用将在桌面版中显示' }}</p><span>{{ desktop ? '搜索并打开应用，最近使用会自动出现在这里。' : '应用索引保存在本机，预览不会访问系统数据。' }}</span></div></div></section>
-      <section class="tools-section"><div class="section-label"><span>XTools 工具</span></div><div class="tools-grid"><button v-for="(item, index) in tools" :key="item.id" class="tool-card" :class="{ selected: store.selected === recent.length + index }" :data-selected="store.selected === recent.length + index" @click="activate(item)" @mouseenter="store.selected = recent.length + index"><AppIcon :item="item" /><span class="tool-name">{{ item.name }}</span><span class="tool-description">{{ item.subtitle }}</span><span class="tool-alias">{{ item.id === 'clipboard' ? 'cb' : item.id === 'color' ? 'color' : 'rn' }} <CornerDownLeft :size="11" /></span></button></div></section>
+      <section class="tools-section"><div class="section-label"><span>XTools 工具</span></div><div class="tools-grid"><button v-for="(item, index) in tools" :key="item.id" class="tool-card" :class="{ selected: store.selected === recent.length + index }" :data-selected="store.selected === recent.length + index" @click="activate(item)" @mouseenter="store.selected = recent.length + index"><AppIcon :item="item" /><span class="tool-name">{{ item.name }}</span><span class="tool-description">{{ item.subtitle }}</span></button></div></section>
     </template>
     <template v-else>
       <div class="section-label search-result-label"><span>{{ store.results.length ? '搜索结果' : '搜索' }}</span><span class="section-caption">{{ store.results.length }} 个结果</span></div>
@@ -101,5 +101,4 @@ onUnmounted(() => { disposed = true; document.removeEventListener('keydown', key
       <div class="search-results"><button v-for="(item, index) in store.results" :key="`${item.kind}-${item.id}`" class="result-row" :class="{ selected: store.selected === index }" :data-selected="store.selected === index" :disabled="launching" @mouseenter="store.selected = index" @click="activate(item)"><AppIcon :item="item" /><span class="result-copy"><strong>{{ item.name }}</strong><span>{{ item.subtitle || (item.kind === 'tool' ? 'XTools 内置工具' : '应用程序') }}</span></span><span v-if="index === 0" class="best-match">最佳匹配</span><CornerDownLeft v-if="store.selected === index" class="muted" :size="17" /></button></div>
     </template>
   </div>
-  <footer class="launcher-footer"><div class="keyboard-hints"><span><kbd><ArrowUp :size="11" /></kbd><kbd><ArrowDown :size="11" /></kbd><kbd><ArrowLeft :size="11" /></kbd><kbd><ArrowRight :size="11" /></kbd> 选择</span><span><kbd>Enter</kbd> 打开</span><span><kbd>Esc</kbd> 隐藏</span></div><button class="footer-settings" @click="openTool('settings')"><Settings :size="15" /><span>设置</span></button></footer>
 </template>

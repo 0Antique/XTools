@@ -1,6 +1,6 @@
 [package]
 name = "xtools"
-version = "0.2.0"
+version = "2.1.0"
 description = "Local Windows launcher and productivity tools"
 edition = "2021"
 rust-version = "1.90"

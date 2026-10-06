@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Existing version tag (for example v0.2.0)
+        description: Existing version tag (for example v2.1)
         required: true
         type: string
 permissions:
@@ -88,10 +88,10 @@ jobs:
           cat docs/v2/RELEASE_NOTES.md > release-notes.md
           printf '\nInstaller SHA256: `%s`\n' "$INSTALLER_SHA256" >> release-notes.md
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            gh release edit "$RELEASE_TAG" --title "XTools $RELEASE_TAG" --notes-file release-notes.md
+            gh release edit "$RELEASE_TAG" --title "XTools ${RELEASE_TAG/v/V}" --notes-file release-notes.md
             gh release upload "$RELEASE_TAG" release/XTools_Setup.exe --clobber
           else
-            gh release create "$RELEASE_TAG" release/XTools_Setup.exe --verify-tag --title "XTools $RELEASE_TAG" --notes-file release-notes.md
+            gh release create "$RELEASE_TAG" release/XTools_Setup.exe --verify-tag --title "XTools ${RELEASE_TAG/v/V}" --notes-file release-notes.md
           fi
           assets=$(gh release view "$RELEASE_TAG" --json assets --jq '[.assets[].name] | sort | join(",")')
           test "$assets" = "XTools_Setup.exe"

@@ -186,3 +186,18 @@ cargo run --manifest-path src-tauri/Cargo.toml --example picker_gdi_benchmark
 - 本地下载副本为 artifacts/v0.2.0/XTools_Setup.exe。可用 `scripts/installer-smoke.ps1 -Installer <下载的 EXE 绝对路径>` 复测；此脚本需要先退出日常 XTools。
 
 发布成功不等于上文所有原生交互与平台矩阵已验收。PR 保留草稿状态，等待对应环境补充证据。
+
+## V2.1 界面小更新（2026-10-06）
+
+发布名称 V2.1，标签 v2.1；Cargo、npm、Tauri 和安装器要求三段语义版本，工程版本为 2.1.0。关于页显示 V2.1。
+
+- [x] 移除三个工具卡片的字母和回车图标；移除首页底部方向键、Enter、Esc 及设置入口整行。
+- [x] 设置入口位于右上角悬浮按钮左侧；点击沿用 open_tool/settings，原生错误通过现有提示呈现。
+- [x] 浏览器视觉与交互检查通过：按钮位置与顺序、设置调用及失败提示、关于页版本、窄窗口卡片无残留列。使用 IPC mock，截图保存在本地 .tools/v21-launcher-ui.png。
+- [x] 前端类型检查、生产构建、15 项原有前端行为断言、Rust 格式及版本一致性检查通过；v2.1 与工程 2.1.0 对应。
+- [x] 本地 NSIS 安装包 33/33 隔离检查通过；安装后的主程序实际版本为 2.1.0，通知身份、启动选项及卸载保留策略正常。测试结束已恢复原实例。
+- [x] [V2.1 Release](https://github.com/0Antique/XTools/releases/tag/v2.1) 已成为最新发布，名称 XTools V2.1，唯一附件 [XTools_Setup.exe](https://github.com/0Antique/XTools/releases/download/v2.1/XTools_Setup.exe)，大小 2,784,005 字节。
+- [x] [Release CI](https://github.com/0Antique/XTools/actions/runs/37417344673) 和 [PR CI](https://github.com/0Antique/XTools/actions/runs/37417282156) 成功；标签指向功能提交 7a57008fcb452478ab64f7b95403396932596be3，后续文档提交仅补充证据。
+- [x] 正式构建产物另完成 33/33 隔离安装/卸载检查，实际 EXE 版本 2.1.0；随后直接从 Release 下载的文件与已测产物一致。下载文件、GitHub 资产 digest 与发布正文 SHA256 均为 `3AB5537E36B4DD3C65E4434F633D25107FE3291FC3167BEB9FBDD337E65D0F02`。本地正式副本为 artifacts/v2.1/XTools_Setup.exe。
+
+本次只调整界面和版本标识；V2 部分尚未验证的平台与原生交互矩阵继续保留。
