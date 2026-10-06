@@ -1,6 +1,86 @@
 use crate::{launcher, settings::Settings, AppState};
 use tauri::{AppHandle, Emitter, Manager, State};
 
+#[tauri::command]
+pub fn get_window_pin(window: tauri::WebviewWindow) -> Result<bool, String> {
+    crate::window_behavior::pinned(&window)
+}
+#[tauri::command]
+pub fn hide_current_window(window: tauri::WebviewWindow) -> Result<(), String> {
+    if window.label() == "launcher" {
+        crate::runtime::clear_invocation(window.app_handle());
+    }
+    window.hide().map_err(|e| e.to_string())
+}
+#[tauri::command]
+pub fn ack_rename_context(window: tauri::WebviewWindow, request_id: u64) -> Result<(), String> {
+    if window.label() != "rename" {
+        return Err("无效的调用窗口".into());
+    }
+    let state = window.state::<crate::windows::explorer_selection::InvocationState>();
+    let mut context = state.rename.lock().map_err(|e| e.to_string())?;
+    if context.as_ref().is_some_and(|c| c.request_id == request_id) {
+        *context = None;
+    }
+    Ok(())
+}
+#[tauri::command]
+pub fn set_window_pin(window: tauri::WebviewWindow, pinned: bool) -> Result<bool, String> {
+    crate::window_behavior::set_pinned(&window, pinned)
+}
+#[tauri::command]
+pub fn get_rename_context(
+    window: tauri::WebviewWindow,
+) -> Result<Option<crate::windows::explorer_selection::SelectionContext>, String> {
+    if window.label() != "rename" {
+        return Err("仅重命名窗口可读取文件上下文".into());
+    }
+    Ok(window
+        .state::<crate::windows::explorer_selection::InvocationState>()
+        .rename
+        .lock()
+        .map_err(|e| e.to_string())?
+        .clone())
+}
+#[tauri::command(async)]
+pub async fn select_rename_paths(
+    window: tauri::WebviewWindow,
+    directory: bool,
+) -> Result<Vec<String>, String> {
+    if window.label() != "rename" {
+        return Err("仅重命名窗口可选择文件".into());
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        use tauri_plugin_dialog::DialogExt;
+        let _guard = crate::window_behavior::protect_dialog(&window);
+        let dialog = window
+            .dialog()
+            .file()
+            .set_parent(&window)
+            .set_title(if directory {
+                "选择要重命名的文件夹（不递归）"
+            } else {
+                "选择要重命名的文件"
+            });
+        let selected = if directory {
+            dialog.blocking_pick_folders()
+        } else {
+            dialog.blocking_pick_files()
+        };
+        selected
+            .unwrap_or_default()
+            .into_iter()
+            .map(|path| {
+                path.into_path()
+                    .map(|p| p.to_string_lossy().into_owned())
+                    .map_err(|e| e.to_string())
+            })
+            .collect()
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 #[tauri::command(async)]
 pub fn search(
     state: State<AppState>,
@@ -27,6 +107,7 @@ pub async fn launch_application(app: AppHandle, id: String) -> Result<(), String
             .cloned()
             .ok_or("应用索引已变化，请重新搜索")?;
         launcher::launch::launch(&selected)?;
+        crate::runtime::clear_invocation(&app);
         {
             let db = state.db.lock().map_err(|e| e.to_string())?;
             crate::database::record_launch(&db, &id)?;

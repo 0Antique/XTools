@@ -1,5 +1,4 @@
 import { convertFileSrc, invoke, isTauri } from '@tauri-apps/api/core';
-import { getCurrentWindow } from '@tauri-apps/api/window';
 
 export const desktop = isTauri();
 
@@ -20,7 +19,7 @@ export function errorText(error: unknown): string {
 }
 
 export async function hideWindow(): Promise<void> {
-  if (desktop) await getCurrentWindow().hide();
+  if (desktop) await command('hide_current_window');
 }
 
 export function hotkeyLabel(hotkey: string): string {

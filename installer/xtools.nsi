@@ -7,6 +7,11 @@ Unicode true
 !include "x64.nsh"
 !include "WinVer.nsh"
 !include "FileFunc.nsh"
+!include "Win\COM.nsh"
+!include "Win\Propkey.nsh"
+!include "Win\RestartManager.nsh"
+!include "utils.nsh"
+!define BUNDLEID "com.antique.xtools"
 Name "{{product_name}}"
 OutFile "{{out_file}}"
 InstallDir "$LOCALAPPDATA\Programs\XTools"
@@ -40,17 +45,17 @@ Page custom OptionsPage OptionsLeave
 
 Function .onInit
   ${IfNot} ${IsNativeAMD64}
-    MessageBox MB_ICONSTOP "XTools V1 只支持 Windows 10（1703 及以上）/ Windows 11 x64。"
+    MessageBox MB_ICONSTOP "XTools V2 只支持 Windows 10（1703 及以上）/ Windows 11 x64。"
     Abort
   ${EndIf}
   ${IfNot} ${AtLeastWin10}
-    MessageBox MB_ICONSTOP "XTools V1 需要 Windows 10（1703 及以上）或 Windows 11。"
+    MessageBox MB_ICONSTOP "XTools V2 需要 Windows 10（1703 及以上）或 Windows 11。"
     Abort
   ${EndIf}
   ; SetProcessDpiAwarenessContext / Per-Monitor V2 require Windows 10 1703.
   ; WinVer.nsh provides AtLeastBuild; 1703 corresponds to build 15063.
   ${IfNot} ${AtLeastBuild} 15063
-    MessageBox MB_ICONSTOP "XTools V1 的多显示器 DPI 支持需要 Windows 10 1703（build 15063）或更高版本。请升级 Windows 后重试。"
+    MessageBox MB_ICONSTOP "XTools V2 的多显示器 DPI 支持需要 Windows 10 1703（build 15063）或更高版本。请升级 Windows 后重试。"
     Abort
   ${EndIf}
   ; No network is used during setup. WebView2 is a system prerequisite.
@@ -87,7 +92,7 @@ Function OptionsPage
   ${If} $OptionsDialog == error
     Abort
   ${EndIf}
-  ${NSD_CreateLabel} 0 0 100% 36u "XTools 完全在本地运行。安装后驻留托盘，按 Alt + Space 呼出。"
+  ${NSD_CreateLabel} 0 0 100% 36u "XTools 安装后驻留托盘，按 Alt + Space 呼出。"
   Pop $0
   ${NSD_CreateCheckbox} 0 46u 100% 14u "创建桌面快捷方式"
   Pop $DesktopCheckbox
@@ -126,6 +131,7 @@ Section "XTools" SEC_MAIN
   WriteUninstaller "$INSTDIR\Uninstall.exe"
   CreateDirectory "$SMPROGRAMS\XTools"
   CreateShortcut "$SMPROGRAMS\XTools\XTools.lnk" "$INSTDIR\${XTOOLS_EXE}"
+  !insertmacro SetLnkAppUserModelId "$SMPROGRAMS\XTools\XTools.lnk"
   ${If} $DesktopChoice == ${BST_CHECKED}
     CreateShortcut "$DESKTOP\XTools.lnk" "$INSTDIR\${XTOOLS_EXE}"
   ${Else}

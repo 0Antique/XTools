@@ -59,6 +59,10 @@ struct DropFiles {
 
 #[link(name = "user32")]
 extern "system" {
+    pub(crate) fn GetClipboardSequenceNumber() -> u32;
+    fn GetClipboardOwner() -> Handle;
+    fn GetWindowThreadProcessId(window: Handle, pid: *mut u32) -> u32;
+    fn RegisterClipboardFormatW(name: *const u16) -> u32;
     fn OpenClipboard(owner: Handle) -> i32;
     fn CloseClipboard() -> i32;
     fn EmptyClipboard() -> i32;
@@ -100,11 +104,98 @@ extern "system" {
 
 #[link(name = "kernel32")]
 extern "system" {
+    fn OpenProcess(access: u32, inherit: i32, pid: u32) -> Handle;
+    fn QueryFullProcessImageNameW(
+        process: Handle,
+        flags: u32,
+        path: *mut u16,
+        size: *mut u32,
+    ) -> i32;
+    fn CloseHandle(handle: Handle) -> i32;
+    fn GlobalSize(handle: Handle) -> usize;
     pub(crate) fn GetModuleHandleW(name: *const u16) -> Handle;
     fn GlobalAlloc(flags: u32, bytes: usize) -> Handle;
     fn GlobalLock(handle: Handle) -> *mut c_void;
     fn GlobalUnlock(handle: Handle) -> i32;
     fn GlobalFree(handle: Handle) -> Handle;
+}
+
+pub(crate) fn owner_name() -> String {
+    let mut pid = 0;
+    unsafe {
+        GetWindowThreadProcessId(GetClipboardOwner(), &mut pid);
+    }
+    let process = unsafe { OpenProcess(0x1000, 0, pid) };
+    if process == 0 {
+        return String::new();
+    }
+    let mut path = [0u16; 32768];
+    let mut size = path.len() as u32;
+    let ok = unsafe { QueryFullProcessImageNameW(process, 0, path.as_mut_ptr(), &mut size) };
+    unsafe {
+        CloseHandle(process);
+    }
+    if ok == 0 {
+        return String::new();
+    }
+    String::from_utf16_lossy(&path[..size as usize])
+        .rsplit('\\')
+        .next()
+        .unwrap_or_default()
+        .to_lowercase()
+}
+
+pub(crate) fn read_png() -> Result<Option<Vec<u8>>, String> {
+    let format = unsafe { RegisterClipboardFormatW(wide("PNG").as_ptr()) };
+    if unsafe { IsClipboardFormatAvailable(format) } == 0 {
+        return Ok(None);
+    }
+    let _guard = open(0)?;
+    let data = unsafe { GetClipboardData(format) };
+    let size = unsafe { GlobalSize(data) };
+    if size == 0 || size > 64 * 1024 * 1024 {
+        return Err("剪贴板 PNG 数据大小无效".into());
+    }
+    let pointer = unsafe { GlobalLock(data) };
+    if pointer.is_null() {
+        return Err("剪贴板 PNG 不可读".into());
+    }
+    let bytes = unsafe { std::slice::from_raw_parts(pointer.cast::<u8>(), size) }.to_vec();
+    unsafe {
+        GlobalUnlock(data);
+    }
+    Ok(Some(bytes))
+}
+
+pub(crate) fn validate_bitmap_size() -> Result<(), String> {
+    if unsafe { IsClipboardFormatAvailable(17) } == 0 {
+        return Ok(());
+    } // CF_DIBV5
+    let _guard = open(0)?;
+    let data = unsafe { GetClipboardData(17) };
+    let size = unsafe { GlobalSize(data) };
+    if !(40..=128 * 1024 * 1024).contains(&size) {
+        return Err("剪贴板位图缓冲区大小无效".into());
+    }
+    let pointer = unsafe { GlobalLock(data) };
+    if pointer.is_null() {
+        return Err("无法读取位图头".into());
+    }
+    let header = unsafe { std::slice::from_raw_parts(pointer.cast::<u8>(), 12) };
+    let width = i32::from_le_bytes(header[4..8].try_into().unwrap()).unsigned_abs();
+    let height = i32::from_le_bytes(header[8..12].try_into().unwrap()).unsigned_abs();
+    unsafe {
+        GlobalUnlock(data);
+    }
+    if width == 0
+        || height == 0
+        || width > 16384
+        || height > 16384
+        || width as u64 * height as u64 * 4 > 128 * 1024 * 1024
+    {
+        return Err("剪贴板图片尺寸过大或无效".into());
+    }
+    Ok(())
 }
 
 #[link(name = "shell32")]
@@ -147,9 +238,15 @@ pub(crate) fn read_files() -> Result<Option<Vec<String>>, String> {
         return Err("无法读取文件剪贴板".into());
     }
     let count = unsafe { DragQueryFileW(handle, u32::MAX, std::ptr::null_mut(), 0) };
+    if count > 10_000 {
+        return Err("剪贴板文件数量过大".into());
+    }
     let mut files = Vec::with_capacity(count as usize);
     for index in 0..count {
         let length = unsafe { DragQueryFileW(handle, index, std::ptr::null_mut(), 0) };
+        if length > 32767 {
+            return Err("剪贴板文件路径过长".into());
+        }
         let mut buffer = vec![0u16; length as usize + 1];
         let copied = unsafe { DragQueryFileW(handle, index, buffer.as_mut_ptr(), length + 1) };
         if copied > 0 {

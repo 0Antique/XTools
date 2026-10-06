@@ -1,4 +1,5 @@
 pub mod dpi;
+pub mod explorer_selection;
 pub mod registry;
 pub mod shell;
 pub mod shortcuts;

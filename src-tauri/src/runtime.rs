@@ -38,9 +38,32 @@ pub fn initialize_log(dir: &Path) -> std::io::Result<()> {
 }
 
 pub fn show_launcher(app: &AppHandle) -> Result<(), String> {
+    let source = crate::windows::explorer_selection::foreground();
+    show_launcher_from(app, source)
+}
+pub fn show_launcher_from(app: &AppHandle, source: isize) -> Result<(), String> {
+    let context = crate::windows::explorer_selection::capture(
+        &app.state::<crate::windows::explorer_selection::InvocationState>(),
+        source,
+    );
+    let current = app.state::<crate::windows::explorer_selection::InvocationState>();
+    if current
+        .current
+        .lock()
+        .map_err(|e| e.to_string())?
+        .as_ref()
+        .is_none_or(|c| c.request_id != context.request_id)
+    {
+        return Ok(());
+    }
+    display_launcher(app)
+}
+fn display_launcher(app: &AppHandle) -> Result<(), String> {
     let window = app
         .get_webview_window("launcher")
         .ok_or("Launcher 窗口不可用")?;
+    crate::window_behavior::transition(&window);
+    window.unminimize().map_err(|e| e.to_string())?;
     crate::windows::dpi::position_launcher(&window)?;
     window.show().map_err(|e| e.to_string())?;
     window
@@ -53,6 +76,7 @@ pub fn toggle_launcher(app: &AppHandle) -> Result<(), String> {
         .get_webview_window("launcher")
         .ok_or("Launcher 窗口不可用")?;
     if window.is_visible().map_err(|e| e.to_string())? {
+        clear_invocation(app);
         window.hide().map_err(|e| e.to_string())
     } else {
         show_launcher(app)
@@ -77,13 +101,14 @@ pub fn request_exit(app: &AppHandle) {
 pub fn open_tool(app: &AppHandle, id: &str) -> Result<(), String> {
     match id {
         "clipboard" => {
-            show_launcher(app)?;
+            display_launcher(app)?;
             app.get_webview_window("launcher")
                 .ok_or("Launcher 窗口不可用")?
                 .emit("tool-opened", serde_json::json!({"id":id}))
                 .map_err(|e| e.to_string())
         }
         "color" => {
+            clear_invocation(app);
             if let Some(w) = app.get_webview_window("launcher") {
                 w.hide().map_err(|e| e.to_string())?;
             }
@@ -96,11 +121,23 @@ pub fn open_tool(app: &AppHandle, id: &str) -> Result<(), String> {
             }
         }
         "rename" | "settings" => {
+            if id == "rename" {
+                let state = app.state::<crate::windows::explorer_selection::InvocationState>();
+                let context = state.current.lock().map_err(|e| e.to_string())?.take();
+                *state.rename.lock().map_err(|e| e.to_string())? = context;
+            } else {
+                clear_invocation(app);
+            }
             if let Some(w) = app.get_webview_window("launcher") {
                 let _ = w.hide();
             }
             if let Some(w) = app.get_webview_window(id) {
+                crate::window_behavior::transition(&w);
+                crate::windows::dpi::position_tool(&w, id)?;
                 w.show().map_err(|e| e.to_string())?;
+                if id == "rename" {
+                    let _ = w.emit("rename-context-changed", ());
+                }
                 w.unminimize().map_err(|e| e.to_string())?;
                 return w.set_focus().map_err(|e| e.to_string());
             }
@@ -109,7 +146,7 @@ pub fn open_tool(app: &AppHandle, id: &str) -> Result<(), String> {
             } else {
                 (720., 680., "XTools · 设置")
             };
-            WebviewWindowBuilder::new(
+            let window = WebviewWindowBuilder::new(
                 app,
                 id,
                 WebviewUrl::App(format!("index.html?view={id}").into()),
@@ -120,9 +157,13 @@ pub fn open_tool(app: &AppHandle, id: &str) -> Result<(), String> {
                 if id == "rename" { 900. } else { 660. },
                 if id == "rename" { 650. } else { 620. },
             )
-            .center()
+            .visible(false)
             .build()
             .map_err(|e| e.to_string())?;
+            crate::window_behavior::transition(&window);
+            crate::windows::dpi::position_tool(&window, id)?;
+            window.show().map_err(|e| e.to_string())?;
+            window.set_focus().map_err(|e| e.to_string())?;
             Ok(())
         }
         _ => Err("未知的内置工具".into()),
@@ -178,4 +219,10 @@ pub fn update_settings(
     let _ = app.emit("settings-changed", &new);
     let _ = app.emit("clipboard-changed", ());
     Ok(new)
+}
+
+pub fn clear_invocation(app: &AppHandle) {
+    if let Some(state) = app.try_state::<crate::windows::explorer_selection::InvocationState>() {
+        state.invalidate();
+    }
 }

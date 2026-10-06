@@ -8,6 +8,55 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 const COLUMNS: &str = "id, item_type, text_content, data_path, preview, created_at, is_favorite";
 
+// V1 did not save producer identity. Convert only its distinctive WeChat
+// RWTemp location; all ambiguous file records retain file-copy semantics.
+pub(crate) fn upgrade_wechat_records(
+    conn: &mut Connection,
+    image_dir: &Path,
+) -> Result<(), String> {
+    let items = list(conn, "")?;
+    for item in items.into_iter().filter(|item| item.item_type == "files") {
+        let paths: Vec<String> =
+            match serde_json::from_str(item.text_content.as_deref().unwrap_or("")) {
+                Ok(paths) => paths,
+                Err(_) => continue,
+            };
+        if paths.len() != 1 || !super::parser::wechat_temp_path(&paths[0]) {
+            continue;
+        }
+        match super::parser::decode_file(&paths[0]) {
+            Ok(content) => {
+                let (kind, text, data, summary, hash) = prepare(content, image_dir)?;
+                let tx = conn.transaction().map_err(|e| e.to_string())?;
+                let existing: Option<i64> = tx
+                    .query_row(
+                        "SELECT id FROM clipboard_items WHERE content_hash=?1",
+                        [&hash],
+                        |r| r.get(0),
+                    )
+                    .optional()
+                    .map_err(|e| e.to_string())?;
+                if let Some(id) = existing {
+                    tx.execute("UPDATE clipboard_items SET is_favorite=MAX(is_favorite,?1), created_at=MAX(created_at,?2) WHERE id=?3", params![item.is_favorite, item.created_at, id]).map_err(|e| e.to_string())?;
+                    tx.execute("DELETE FROM clipboard_items WHERE id=?1", [item.id])
+                        .map_err(|e| e.to_string())?;
+                } else {
+                    tx.execute("UPDATE clipboard_items SET item_type=?1,text_content=?2,data_path=?3,preview=?4,content_hash=?5 WHERE id=?6", params![kind,text,data,summary,hash,item.id]).map_err(|e| e.to_string())?;
+                }
+                tx.commit().map_err(|e| e.to_string())?;
+            }
+            Err(_) => {
+                conn.execute(
+                    "UPDATE clipboard_items SET preview='原图片已失效，请重新复制' WHERE id=?1",
+                    [item.id],
+                )
+                .map_err(|e| e.to_string())?;
+            }
+        }
+    }
+    Ok(())
+}
+
 fn item_from_row(row: &Row<'_>) -> rusqlite::Result<ClipboardItem> {
     Ok(ClipboardItem {
         id: row.get(0)?,
@@ -52,13 +101,23 @@ pub(crate) fn get(conn: &Connection, id: i64) -> Result<ClipboardItem, String> {
     .ok_or_else(|| "剪贴板记录已不存在".into())
 }
 
+#[allow(dead_code)] // Convenience entry point used by integration probes/tests.
 pub(crate) fn record(
     conn: &mut Connection,
     content: CapturedContent,
     image_dir: &Path,
     limit: usize,
 ) -> Result<i64, String> {
-    let (item_type, text_content, data_path, preview, hash) = prepare(content, image_dir)?;
+    record_prepared(conn, prepare(content, image_dir)?, image_dir, limit)
+}
+
+pub(crate) fn record_prepared(
+    conn: &mut Connection,
+    prepared: PreparedContent,
+    image_dir: &Path,
+    limit: usize,
+) -> Result<i64, String> {
+    let (item_type, text_content, data_path, preview, hash) = prepared;
     let transaction = conn.transaction().map_err(|error| error.to_string())?;
     let latest: i64 = transaction
         .query_row(
@@ -118,9 +177,12 @@ fn preview(text: &str) -> String {
     result
 }
 
-type PreparedContent = (String, Option<String>, Option<String>, String, String);
+pub(crate) type PreparedContent = (String, Option<String>, Option<String>, String, String);
 
-fn prepare(content: CapturedContent, image_dir: &Path) -> Result<PreparedContent, String> {
+pub(crate) fn prepare(
+    content: CapturedContent,
+    image_dir: &Path,
+) -> Result<PreparedContent, String> {
     let mut digest = Sha256::new();
     match content {
         CapturedContent::Text(text) => {
@@ -333,6 +395,54 @@ mod tests {
         let connection = Connection::open_in_memory().unwrap();
         connection.execute_batch("CREATE TABLE clipboard_items (id INTEGER PRIMARY KEY AUTOINCREMENT, item_type TEXT NOT NULL, text_content TEXT, data_path TEXT, preview TEXT, content_hash TEXT UNIQUE, created_at INTEGER NOT NULL, is_favorite INTEGER NOT NULL DEFAULT 0);").unwrap();
         connection
+    }
+
+    #[test]
+    fn wechat_upgrade_merges_duplicates_and_preserves_favorites_and_files() {
+        let temp = tempfile::tempdir().unwrap();
+        let dir = temp.path().join("images");
+        let source = temp
+            .path()
+            .join("xwechat_files/account/temp/RWTemp/test.data");
+        fs::create_dir_all(source.parent().unwrap()).unwrap();
+        image::RgbaImage::from_pixel(2, 2, image::Rgba([3, 4, 5, 255]))
+            .save_with_format(&source, image::ImageFormat::Png)
+            .unwrap();
+        let mut conn = database();
+        let image_id = record(
+            &mut conn,
+            super::super::parser::decode_file(source.to_str().unwrap()).unwrap(),
+            &dir,
+            100,
+        )
+        .unwrap();
+        let old_id = record(
+            &mut conn,
+            CapturedContent::Files(vec![source.to_string_lossy().into_owned()]),
+            &dir,
+            100,
+        )
+        .unwrap();
+        favorite(&mut conn, old_id, true, 100, &dir).unwrap();
+        let normal_id = record(
+            &mut conn,
+            CapturedContent::Files(vec![temp
+                .path()
+                .join("photo.png")
+                .to_string_lossy()
+                .into_owned()]),
+            &dir,
+            100,
+        )
+        .unwrap();
+        upgrade_wechat_records(&mut conn, &dir).unwrap();
+        assert!(get(&conn, image_id).unwrap().is_favorite);
+        assert!(get(&conn, old_id).is_err());
+        assert_eq!(get(&conn, normal_id).unwrap().item_type, "files");
+        fs::remove_file(source).unwrap();
+        assert!(image::open(get(&conn, image_id).unwrap().data_path.unwrap()).is_ok());
+        upgrade_wechat_records(&mut conn, &dir).unwrap();
+        assert_eq!(list(&conn, "").unwrap().len(), 2);
     }
 
     #[test]

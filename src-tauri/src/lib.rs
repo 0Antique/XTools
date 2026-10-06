@@ -1,15 +1,17 @@
 #[cfg(not(all(windows, target_arch = "x86_64")))]
-compile_error!("XTools V1 supports Windows x64 only");
+compile_error!("XTools supports Windows x64 only");
 
 mod clipboard;
 mod color_picker;
 mod commands;
 pub mod database;
 pub mod launcher;
+mod notifications;
 mod rename;
 mod runtime;
 pub mod settings;
 mod tray;
+mod window_behavior;
 pub mod windows;
 
 use rusqlite::Connection;
@@ -55,9 +57,21 @@ pub fn run() {
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, _, event| {
                     if event.state() == ShortcutState::Pressed {
-                        if let Err(e) = runtime::toggle_launcher(app) {
-                            log_error(app, &e);
-                        }
+                        let source = windows::explorer_selection::foreground();
+                        let handle = app.clone();
+                        std::thread::spawn(move || {
+                            let visible = handle
+                                .get_webview_window("launcher")
+                                .is_some_and(|w| w.is_visible().unwrap_or(false));
+                            let result = if visible {
+                                runtime::toggle_launcher(&handle)
+                            } else {
+                                runtime::show_launcher_from(&handle, source)
+                            };
+                            if let Err(e) = result {
+                                log_error(&handle, &e);
+                            }
+                        });
                     }
                 })
                 .build(),
@@ -94,12 +108,20 @@ pub fn run() {
                 }
             };
             let mut db = database::open(&data_dir.join("data/xtools.db"))?;
+            if let Err(e) = clipboard::storage::upgrade_wechat_records(
+                &mut db,
+                &data_dir.join("clipboard/images"),
+            ) {
+                log::warn!("旧微信图片兼容转换失败：{e}");
+            }
             clipboard::enforce_limit(
                 &mut db,
                 configuration.clipboard_limit,
                 &data_dir.join("clipboard/images"),
             )?;
             let apps = database::load_applications(&db)?;
+            app.manage(window_behavior::WindowBehaviors::default());
+            app.manage(windows::explorer_selection::InvocationState::default());
             app.manage(AppState {
                 db: Mutex::new(db),
                 data_dir: data_dir.clone(),
@@ -127,6 +149,7 @@ pub fn run() {
             settings::persist(&data_dir, &configuration)?;
             settings::acknowledge_installer_preference();
             tray::create(app.handle())?;
+            window_behavior::start_external_clicks(app.handle().clone());
             if let Err(e) = clipboard::start_listener(app.handle().clone()) {
                 log_error(app.handle(), &e);
                 if let Ok(mut warnings) = app.state::<AppState>().warnings.lock() {
@@ -159,11 +182,23 @@ pub fn run() {
             commands::preview_rename,
             commands::execute_rename,
             commands::undo_rename,
-            commands::rename_history_available
+            commands::rename_history_available,
+            commands::get_window_pin,
+            commands::set_window_pin,
+            commands::get_rename_context,
+            commands::ack_rename_context,
+            commands::hide_current_window,
+            commands::select_rename_paths
         ])
         .on_window_event(|window, event| {
+            if let tauri::WindowEvent::Focused(false) = event {
+                window_behavior::focus_lost(window);
+            }
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 api.prevent_close();
+                if window.label() == "launcher" {
+                    runtime::clear_invocation(window.app_handle());
+                }
                 let _ = window.hide();
             }
         })

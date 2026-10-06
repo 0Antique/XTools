@@ -21,7 +21,7 @@ mod implementation {
     const RADIUS: i32 = GRID / 2;
 
     #[repr(C)]
-    #[derive(Default, Copy, Clone)]
+    #[derive(Default, Copy, Clone, PartialEq)]
     struct Point {
         x: i32,
         y: i32,
@@ -180,6 +180,23 @@ mod implementation {
             operation: u32,
         ) -> i32;
         fn CreateSolidBrush(color: u32) -> Handle;
+        fn GetStockObject(index: i32) -> Handle;
+        fn SetDCBrushColor(dc: Handle, color: u32) -> u32;
+        fn GdiFlush() -> i32;
+        fn StretchBlt(
+            destination: Handle,
+            x: i32,
+            y: i32,
+            width: i32,
+            height: i32,
+            source: Handle,
+            source_x: i32,
+            source_y: i32,
+            source_width: i32,
+            source_height: i32,
+            operation: u32,
+        ) -> i32;
+        fn SetStretchBltMode(dc: Handle, mode: i32) -> i32;
         fn DeleteObject(object: Handle) -> i32;
         fn CreateFontW(
             height: i32,
@@ -210,6 +227,12 @@ mod implementation {
         fn DwmFlush() -> i32;
     }
 
+    #[link(name = "winmm")]
+    extern "system" {
+        fn timeBeginPeriod(period: u32) -> u32;
+        fn timeEndPeriod(period: u32) -> u32;
+    }
+
     fn wide(text: &str) -> Vec<u16> {
         text.encode_utf16().chain(Some(0)).collect()
     }
@@ -233,11 +256,35 @@ mod implementation {
         sample_bitmap: Handle,
         original_bitmap: Handle,
         copy_error: bool,
+        pixels: *mut u8,
+        buffer_dc: Handle,
+        buffer_bitmap: Handle,
+        buffer_original: Handle,
+        buffer_size: (i32, i32),
+        last_point: Option<Point>,
+        monitor_handle: Handle,
+        monitor: MonitorInfo,
+        picked: Option<String>,
+        poll_interval: u32,
+        last_frame: Option<std::time::Instant>,
+        frame_intervals: Vec<f64>,
+        sample_times: Vec<f64>,
+        paint_times: Vec<f64>,
     }
 
     impl Drop for Picker {
         fn drop(&mut self) {
+            if std::env::var_os("XTOOLS_PICKER_METRICS").is_some() {
+                use tauri::Manager;
+                let dir = &self.app.state::<crate::AppState>().data_dir;
+                let _ = std::fs::write(dir.join("logs/picker-metrics.json"), serde_json::json!({"frameIntervalsMs": self.frame_intervals, "sampleMs": self.sample_times, "paintMs": self.paint_times}).to_string());
+            }
             unsafe {
+                if self.buffer_dc != 0 {
+                    SelectObject(self.buffer_dc, self.buffer_original);
+                    DeleteObject(self.buffer_bitmap);
+                    DeleteDC(self.buffer_dc);
+                }
                 if self.font != 0 {
                     DeleteObject(self.font);
                 }
@@ -337,6 +384,7 @@ mod implementation {
         if GetCursorPos(&mut point) == 0 {
             return;
         }
+        let sample_start = std::time::Instant::now();
         clear_overlay_from_sample(window, point);
         let screen = GetDC(0);
         if screen == 0 {
@@ -345,7 +393,33 @@ mod implementation {
         if picker.sample_dc == 0 {
             picker.sample_dc = CreateCompatibleDC(screen);
             if picker.sample_dc != 0 {
-                picker.sample_bitmap = CreateCompatibleBitmap(screen, GRID, GRID);
+                use windows::Win32::Graphics::Gdi::{
+                    CreateDIBSection, BITMAPINFO, BITMAPINFOHEADER, BI_RGB, DIB_RGB_COLORS, HDC,
+                };
+                let info = BITMAPINFO {
+                    bmiHeader: BITMAPINFOHEADER {
+                        biSize: std::mem::size_of::<BITMAPINFOHEADER>() as u32,
+                        biWidth: GRID,
+                        biHeight: -GRID,
+                        biPlanes: 1,
+                        biBitCount: 32,
+                        biCompression: BI_RGB.0,
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                };
+                let mut bits = std::ptr::null_mut();
+                picker.sample_bitmap = CreateDIBSection(
+                    Some(HDC(screen as *mut _)),
+                    &info,
+                    DIB_RGB_COLORS,
+                    &mut bits,
+                    None,
+                    0,
+                )
+                .map(|bitmap| bitmap.0 as isize)
+                .unwrap_or(0);
+                picker.pixels = bits.cast();
                 if picker.sample_bitmap != 0 {
                     picker.original_bitmap = SelectObject(picker.sample_dc, picker.sample_bitmap);
                 }
@@ -364,19 +438,16 @@ mod implementation {
                 point.y - RADIUS,
                 0x00CC0020,
             ) != 0;
-        for y in 0..GRID {
-            for x in 0..GRID {
-                let color = if copied {
-                    GetPixel(picker.sample_dc, x, y)
-                } else {
-                    u32::MAX
-                };
-                picker.tiles[(y * GRID + x) as usize] =
-                    if color == u32::MAX { 0x00FFFFFF } else { color };
+        GdiFlush();
+        let previous = picker.tiles;
+        if copied && !picker.pixels.is_null() {
+            let pixels = std::slice::from_raw_parts(picker.pixels, (GRID * GRID * 4) as usize);
+            for (tile, pixel) in picker.tiles.iter_mut().zip(pixels.as_chunks::<4>().0) {
+                *tile = pixel[2] as u32 | ((pixel[1] as u32) << 8) | ((pixel[0] as u32) << 16);
             }
         }
         let center = if copied {
-            GetPixel(picker.sample_dc, RADIUS, RADIUS)
+            picker.tiles[(RADIUS * GRID + RADIUS) as usize]
         } else {
             GetPixel(screen, point.x, point.y)
         };
@@ -386,15 +457,38 @@ mod implementation {
             picker.color = rgb(center);
         }
 
-        let mut monitor = MonitorInfo {
-            size: std::mem::size_of::<MonitorInfo>() as u32,
-            monitor: Rect::default(),
-            work: Rect::default(),
-            flags: 0,
-        };
-        if GetMonitorInfoW(MonitorFromPoint(point, 2), &mut monitor) == 0 {
+        let moved = picker.last_point != Some(point);
+        let monitor_handle = MonitorFromPoint(point, 2);
+        if picker.monitor_handle != monitor_handle {
+            if GetMonitorInfoW(monitor_handle, &mut picker.monitor) == 0 {
+                return;
+            }
+            picker.monitor_handle = monitor_handle;
+        }
+        let monitor = &picker.monitor;
+        let interval = if moved { 16 } else { 32 };
+        if picker.poll_interval != interval {
+            SetTimer(window, 1, interval, std::ptr::null());
+            picker.poll_interval = interval;
+        }
+        picker.last_point = Some(point);
+        if picker.sample_times.len() < 10000 {
+            picker
+                .sample_times
+                .push(sample_start.elapsed().as_secs_f64() * 1000.);
+        }
+        if !moved && previous == picker.tiles && !picker.copy_error {
             return;
         }
+        let now = std::time::Instant::now();
+        if let Some(previous) = picker.last_frame {
+            if picker.frame_intervals.len() < 10000 {
+                picker
+                    .frame_intervals
+                    .push(now.duration_since(previous).as_secs_f64() * 1000.);
+            }
+        }
+        picker.last_frame = Some(now);
         // Physical coordinates throughout; the thread is Per-Monitor V2.
         // Moving across a DPI boundary updates GetDpiForWindow on this tick.
         let dpi = GetDpiForWindow(window).max(96);
@@ -421,11 +515,9 @@ mod implementation {
     }
 
     unsafe fn fill(dc: Handle, rect: Rect, color: u32) {
-        let brush = CreateSolidBrush(color);
-        if brush != 0 {
-            FillRect(dc, &rect, brush);
-            DeleteObject(brush);
-        }
+        let brush = GetStockObject(18); // DC_BRUSH, borrowed stock object
+        SetDCBrushColor(dc, color);
+        FillRect(dc, &rect, brush);
     }
 
     unsafe fn text(
@@ -455,11 +547,32 @@ mod implementation {
 
     unsafe fn paint(window: Handle, picker: &mut Picker) {
         let mut paint = PaintStruct::default();
-        let dc = BeginPaint(window, &mut paint);
-        if dc == 0 {
+        let paint_start = std::time::Instant::now();
+        let target = BeginPaint(window, &mut paint);
+        if target == 0 {
             return;
         }
         let scale = picker.scale;
+        let size = (scaled(220, scale), scaled(326, scale));
+        if picker.buffer_dc == 0 {
+            picker.buffer_dc = CreateCompatibleDC(target);
+        }
+        if picker.buffer_dc != 0 && picker.buffer_size != size {
+            if picker.buffer_bitmap != 0 {
+                SelectObject(picker.buffer_dc, picker.buffer_original);
+                DeleteObject(picker.buffer_bitmap);
+            }
+            picker.buffer_bitmap = CreateCompatibleBitmap(target, size.0, size.1);
+            if picker.buffer_bitmap != 0 {
+                picker.buffer_original = SelectObject(picker.buffer_dc, picker.buffer_bitmap);
+            }
+            picker.buffer_size = size;
+        }
+        let dc = if picker.buffer_dc != 0 && picker.buffer_bitmap != 0 {
+            picker.buffer_dc
+        } else {
+            target
+        };
         fill(
             dc,
             Rect {
@@ -470,19 +583,21 @@ mod implementation {
             },
             0x00FAFAFA,
         );
-        for y in 0..GRID {
-            for x in 0..GRID {
-                fill(
-                    dc,
-                    Rect {
-                        left: scaled(20 + x * 20, scale),
-                        top: scaled(16 + y * 20, scale),
-                        right: scaled(20 + (x + 1) * 20, scale),
-                        bottom: scaled(16 + (y + 1) * 20, scale),
-                    },
-                    picker.tiles[(y * GRID + x) as usize],
-                );
-            }
+        SetStretchBltMode(dc, 3); // COLORONCOLOR, preserve magnified pixel edges
+        if picker.sample_dc != 0 && picker.sample_bitmap != 0 {
+            StretchBlt(
+                dc,
+                scaled(20, scale),
+                scaled(16, scale),
+                scaled(180, scale),
+                scaled(180, scale),
+                picker.sample_dc,
+                0,
+                0,
+                GRID,
+                GRID,
+                0x00CC0020,
+            );
         }
         let black = CreateSolidBrush(0);
         let white = CreateSolidBrush(0x00FFFFFF);
@@ -582,7 +697,15 @@ mod implementation {
         if old_font != 0 {
             SelectObject(dc, old_font);
         }
+        if dc != target {
+            BitBlt(target, 0, 0, size.0, size.1, dc, 0, 0, 0x00CC0020);
+        }
         EndPaint(window, &paint);
+        if picker.paint_times.len() < 10000 {
+            picker
+                .paint_times
+                .push(paint_start.elapsed().as_secs_f64() * 1000.);
+        }
     }
 
     unsafe extern "system" fn window_proc(
@@ -630,7 +753,7 @@ mod implementation {
                     let result = crate::clipboard::write_text(&hex);
                     match result {
                         Ok(()) => {
-                            let _ = (*picker).app.emit("color-picked", &hex);
+                            (*picker).picked = Some(hex);
                         }
                         Err(error) => {
                             crate::log_error(&(*picker).app, &format!("Color picker: {error}"));
@@ -671,6 +794,19 @@ mod implementation {
             .name("xtools-color-picker".into())
             .spawn(move || {
                 let _active = ActiveGuard;
+                struct TimerResolution;
+                impl Drop for TimerResolution {
+                    fn drop(&mut self) {
+                        unsafe {
+                            timeEndPeriod(1);
+                        }
+                    }
+                }
+                let timer_resolution = if unsafe { timeBeginPeriod(1) } == 0 {
+                    Some(TimerResolution)
+                } else {
+                    None
+                };
                 unsafe {
                     SetThreadDpiAwarenessContext(-4);
                 }
@@ -709,6 +845,25 @@ mod implementation {
                     sample_bitmap: 0,
                     original_bitmap: 0,
                     copy_error: false,
+                    pixels: std::ptr::null_mut(),
+                    buffer_dc: 0,
+                    buffer_bitmap: 0,
+                    buffer_original: 0,
+                    buffer_size: (0, 0),
+                    last_point: None,
+                    monitor_handle: 0,
+                    monitor: MonitorInfo {
+                        size: std::mem::size_of::<MonitorInfo>() as u32,
+                        monitor: Rect::default(),
+                        work: Rect::default(),
+                        flags: 0,
+                    },
+                    picked: None,
+                    poll_interval: 16,
+                    last_frame: None,
+                    frame_intervals: vec![],
+                    sample_times: vec![],
+                    paint_times: vec![],
                 });
                 let window = unsafe {
                     CreateWindowExW(
@@ -748,7 +903,7 @@ mod implementation {
                     SetWindowDisplayAffinity(window, 0x00000011);
                     refresh(window, &mut picker);
                 }
-                if unsafe { SetTimer(window, 1, 33, std::ptr::null()) } == 0 {
+                if unsafe { SetTimer(window, 1, 16, std::ptr::null()) } == 0 {
                     unsafe {
                         DestroyWindow(window);
                     }
@@ -769,9 +924,19 @@ mod implementation {
                 }
                 unsafe {
                     KillTimer(window, 1);
-                    DestroyWindow(window);
+                    if WINDOW.load(Ordering::Acquire) == window {
+                        DestroyWindow(window);
+                    }
                 }
                 drop(hooks);
+                drop(timer_resolution);
+                let picked = picker.picked.take();
+                let app = picker.app.clone();
+                drop(picker);
+                if let Some(hex) = picked {
+                    let _ = app.emit("color-picked", &hex);
+                    crate::notifications::color_copied(app, hex);
+                }
             })
         {
             ACTIVE.store(false, Ordering::Release);

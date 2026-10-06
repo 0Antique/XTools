@@ -289,3 +289,17 @@ kbd { font-family: inherit; font-size: 10px; color: #9aa0aa; padding: 1px 5px; m
 }
 
 @media (prefers-reduced-motion: reduce) { .spinning { animation: none; } }
+
+/* V2 window controls and clipboard previews */
+.pin-button.pinned { color: #2563eb; background: #eaf3ff; }
+.clipboard-row.image-row { min-height: 96px; }
+.clipboard-type-icon.image-preview { width: 120px; height: 72px; flex: 0 0 120px; border-radius: 6px; overflow: hidden; background: repeating-conic-gradient(#edf1f6 0% 25%, #fff 0% 50%) 50% / 12px 12px; }
+.clipboard-type-icon.image-preview img { width: 100%; height: 100%; object-fit: contain; }
+.image-failure { color: #64748b; font-size: 11px; line-height: 1.6; text-align: center; }
+.rename-rules { background: #eaf3ff; border-color: #c9ddf5; }
+.rename-rules .rule-heading h2, .rename-rules .rule-group h3 { color: #334155; }
+.rename-rules .field-label, .rename-rules .numbering-toggle, .rename-rules .field-note, .rename-rules .rule-number { color: #52657d; }
+.rename-rules .rule-group { border-color: #c9ddf5; }
+.rename-rules input, .rename-rules select { border-color: #b8cce6; color: #334155; background: #fff; }
+.rename-rules input::placeholder { color: #64748b; }
+.rename-rules input:focus, .rename-rules select:focus { outline: 2px solid #3b82f6; outline-offset: 1px; }

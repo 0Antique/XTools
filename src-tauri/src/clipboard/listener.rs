@@ -28,13 +28,10 @@ mod implementation {
                 .lock()
                 .map_err(|_| "设置锁已损坏")?
                 .clipboard_limit;
+            let image_dir = state.data_dir.join("clipboard").join("images");
+            let prepared = storage::prepare(content, &image_dir)?;
             let mut connection = state.db.lock().map_err(|_| "数据库锁已损坏")?;
-            storage::record(
-                &mut connection,
-                content,
-                &state.data_dir.join("clipboard").join("images"),
-                limit,
-            )?;
+            storage::record_prepared(&mut connection, prepared, &image_dir, limit)?;
             Ok(true)
         })();
         match result {
