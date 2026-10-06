@@ -186,3 +186,14 @@ cargo run --manifest-path src-tauri/Cargo.toml --example picker_gdi_benchmark
 - 本地下载副本为 artifacts/v0.2.0/XTools_Setup.exe。可用 `scripts/installer-smoke.ps1 -Installer <下载的 EXE 绝对路径>` 复测；此脚本需要先退出日常 XTools。
 
 发布成功不等于上文所有原生交互与平台矩阵已验收。PR 保留草稿状态，等待对应环境补充证据。
+
+## V2.1 界面小更新（2026-10-06）
+
+发布名称 V2.1，标签 v2.1；Cargo、npm、Tauri 和安装器要求三段语义版本，工程版本为 2.1.0。关于页显示 V2.1。
+
+- [x] 移除三个工具卡片的字母和回车图标；移除首页底部方向键、Enter、Esc 及设置入口整行。
+- [x] 设置入口位于右上角悬浮按钮左侧；点击沿用 open_tool/settings，原生错误通过现有提示呈现。
+- [x] 浏览器视觉与交互检查通过：按钮位置与顺序、设置调用及失败提示、关于页版本、窄窗口卡片无残留列。使用 IPC mock，截图保存在本地 .tools/v21-launcher-ui.png。
+- [x] 前端类型检查、生产构建、15 项原有前端行为断言、Rust 格式及版本一致性检查通过；v2.1 与工程 2.1.0 对应。
+
+本次只调整界面和版本标识；V2 部分尚未验证的平台与原生交互矩阵继续保留。

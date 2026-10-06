@@ -1,7 +1,10 @@
 param([string]$Installer)
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
-if (!$Installer) { $Installer = Join-Path $repo 'src-tauri\target\release\bundle\nsis\XTools_0.2.0_x64-setup.exe' }
+if (!$Installer) {
+  $taskPackageVersion = (Get-Content -LiteralPath (Join-Path $repo 'package.json') -Raw | ConvertFrom-Json).version
+  $Installer = Join-Path $repo "src-tauri\target\release\bundle\nsis\XTools_${taskPackageVersion}_x64-setup.exe"
+}
 if (!(Test-Path -LiteralPath $Installer -PathType Leaf)) { throw 'Installer EXE not found' }
 $fixture = Join-Path $repo ('.tools\installer-v2-smoke-' + [Guid]::NewGuid().ToString('N'))
 $install = Join-Path $fixture 'Install With Spaces'

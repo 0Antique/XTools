@@ -1,6 +1,6 @@
 # XTools
 
-XTools 0.2.0 是面向 **Windows 10 1703（build 15063）及以上 / Windows 11 原生 AMD64（x64）** 的本地效率工具，通过 `Alt + Space` 搜索应用、管理剪贴板、屏幕取色和批量重命名。使用 Tauri 2、Rust、Vue 3、TypeScript 和 SQLite。
+XTools V2.1 是面向 **Windows 10 1703（build 15063）及以上 / Windows 11 原生 AMD64（x64）** 的本地效率工具，通过 `Alt + Space` 搜索应用、管理剪贴板、屏幕取色和批量重命名。使用 Tauri 2、Rust、Vue 3、TypeScript 和 SQLite。
 
 ## 功能
 
@@ -25,6 +25,8 @@ XTools 不做全盘文件搜索，不递归重命名文件夹内容。运行时�
 
 [下载 XTools 0.2.0 安装器](https://github.com/0Antique/XTools/releases/download/v0.2.0/XTools_Setup.exe)，或查看 [Release 页面](https://github.com/0Antique/XTools/releases/tag/v0.2.0)。附件只有 `XTools_Setup.exe`，约 2.66 MiB，下载后直接运行。正式附件已核对 SHA256 并完成隔离安装/卸载检查。
 
+V2.1 去掉了工具卡片的字母提示和首页底部整行，并将设置移到右上角悬浮按钮左侧。发布标签为 `v2.1`，工程版本为 `2.1.0`；下载入口将在正式附件验证后更新。
+
 最低 Windows 10 版本为 1703，因为 Per-Monitor DPI Awareness V2 使用的 [SetProcessDpiAwarenessContext API](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setprocessdpiawarenesscontext) 从该版本起可用。安装器检查系统版本和 build，阻止早期 Windows 10 安装。
 
 系统需要已安装 **Microsoft Edge WebView2 Runtime**。安装程序会检查此条件；缺少运行时会给出提示并停止，**不会联网下载**。需预先准备 WebView2 时，可使用 Microsoft 提供的离线安装程序。
@@ -37,6 +39,7 @@ XTools 不做全盘文件搜索，不递归重命名文件夹内容。运行时�
 - 输入 `微信`、`weixin` 或 `wx` 搜索已发现的微信应用；输入 `cb`、`picker`、`rn`、`settings` 打开内置工具。
 - 在剪贴板历史按 `Enter` 只重新复制所选内容并隐藏 XTools，由用户自行粘贴。
 - 右上角图钉开启悬浮后窗口置顶，点击外部继续显示；未悬浮时点击外部隐藏。
+- 设置按钮位于右上角悬浮按钮左侧。
 - 在资源管理器选中文件后按 `Alt + Space`，打开批量重命名即可带入选中项，新批次会替换原列表并重置规则；手动添加和拖入仍追加。
 - 取色成功后使用 Windows 原生短时通知显示 HEX；系统勿扰或关闭通知时遵守系统设置。
 - 每次呼出都放在当前主显示器工作区。
@@ -62,7 +65,7 @@ cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check
 npm run tauri build
 ```
 
-NSIS 默认构建输出为 `src-tauri/target/release/bundle/nsis/XTools_0.2.0_x64-setup.exe`，Release 附件统一命名为 `XTools_Setup.exe`，不包含 WebView2 Runtime。
+NSIS 默认构建输出为 `src-tauri/target/release/bundle/nsis/XTools_2.1.0_x64-setup.exe`，Release 附件统一命名为 `XTools_Setup.exe`，不包含 WebView2 Runtime。
 
 此工作区可选使用便携构建工具。存在本机 `.tools` 时，先在 PowerShell 执行：
 
@@ -93,4 +96,4 @@ XTools/
 
 Rust 核心测试、前端类型检查和生产构建已通过，并已生成 NSIS 安装包。本机原生扫描发现 **95 个应用并提取 95 个图标**，其中 31 个 UWP 应用；2000 应用模拟索引的 Debug 搜索平均约 **1.25 ms/次**。这些数据不代替 Windows 10/11、混合 DPI、多显示器、完整原生交互与资源占用验收。
 
-完整操作步骤和未完成的验证项见 [docs/ACCEPTANCE.md](docs/ACCEPTANCE.md)。仓库为 [0Antique/XTools](https://github.com/0Antique/XTools)，本次开发分支为 `codex/xtools-v2`。
+完整操作步骤和未完成的验证项见 [docs/ACCEPTANCE.md](docs/ACCEPTANCE.md)。仓库为 [0Antique/XTools](https://github.com/0Antique/XTools)，本次开发分支为 `codex/xtools-v2.1`。
