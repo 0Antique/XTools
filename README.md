@@ -1,96 +1,115 @@
+<div align="center">
+
+<img src="src-tauri/icons/icon.png" alt="XTools 图标" width="72" />
+
 # XTools
 
-XTools 0.2.0 是面向 **Windows 10 1703（build 15063）及以上 / Windows 11 原生 AMD64（x64）** 的本地效率工具，通过 `Alt + Space` 搜索应用、管理剪贴板、屏幕取色和批量重命名。使用 Tauri 2、Rust、Vue 3、TypeScript 和 SQLite。
+**按下 Alt + Space，常用工具就在手边。**
 
-## 功能
+一款 Windows 桌面效率工具，把应用启动、剪贴板历史、屏幕取色和批量重命名放进同一个入口。
 
-以下功能已实现；已完成的验证与待验证项目见 [验收记录](docs/ACCEPTANCE.md)。
+[![最新版本](https://img.shields.io/github/v/release/0Antique/XTools?label=version&color=526c8b)](https://github.com/0Antique/XTools/releases/latest)
+![Windows](https://img.shields.io/badge/Windows-10%20%2F%2011-0078D4)
 
-| 模块 | 已实现内容 |
+[**下载 Windows 安装包**](https://github.com/0Antique/XTools/releases/latest/download/XTools_Setup.exe) · [快速开始](#快速开始) · [反馈问题](https://github.com/0Antique/XTools/issues)
+
+</div>
+
+## 它能帮你做什么
+
+| 工具 | 日常用途 |
 | --- | --- |
-| Launcher | 全局快捷键、键盘导航、开始菜单与桌面应用扫描、Registry 补充、UWP 发现与激活、真实图标缓存、中文/拼音/首字母搜索、去重、最近 8 个应用、后台刷新和旧索引保留 |
-| 剪贴板 | 原生事件监听；文本、图片、文件/文件夹路径历史；搜索、收藏、删除、清空、去重、重新复制；默认最多 100 条普通历史，收藏不计入限额 |
-| 取色 | 原生像素放大镜、HEX/RGB/HSL；左键复制 HEX，右键或 Esc 取消；Per-Monitor DPI Awareness V2 |
-| 批量重命名 | 文件与文件夹混合选择/拖入；前后缀、替换、删除字符、编号、大小写；实时预览、冲突检测、两阶段执行、失败回滚、撤销最近一次成功操作 |
-| 设置与托盘 | 快捷键录制和失败恢复、开机启动、历史数量、最近使用开关、重新扫描、关于、单实例、托盘退出 |
-| 安装包 | NSIS、当前用户安装、自选安装目录、桌面快捷方式和开机启动选项；开机启动默认勾选 |
+| **应用启动** | 输入应用名称、拼音或首字母，快速找到并打开应用；常用应用会出现在最近使用中。 |
+| **剪贴板历史** | 找回复制过的文字、图片和文件路径，搜索历史、收藏常用内容，再次复制使用。 |
+| **屏幕取色** | 放大鼠标附近的像素，查看 HEX、RGB、HSL，点击即可复制颜色。 |
+| **批量重命名** | 添加前后缀、查找替换、自动编号或调整大小写，先预览再执行，支持撤销上一次操作。 |
 
-XTools 不做全盘文件搜索，不递归重命名文件夹内容。运行时没有账号、云服务、遥测、网络请求或 Node.js 后台进程。取色只实时采样，不保存截图。
+## 快速开始
 
-## V2 更新
+**适用系统：Windows 10 1703 及以上 / Windows 11，x64。**
 
-微信图片临时文件回退、独立图片保存和大缩略图；四向导航；悬浮与外部隐藏；主屏定位；资源管理器选中项带入；淡蓝规则区与简化文案；DIB 取色缓冲和原生通知。实际验证边界见 [V2 验收记录](docs/ACCEPTANCE.md)。
+1. [下载最新安装包](https://github.com/0Antique/XTools/releases/latest/download/XTools_Setup.exe)，直接运行 `XTools_Setup.exe`，无需解压。
+2. 选择安装目录，按需勾选桌面快捷方式和开机启动。
+3. 启动 XTools 后，按 **`Alt + Space`** 呼出窗口，输入应用名称或选择工具。
 
-## 安装与使用
+系统需要已安装 [Microsoft Edge WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/)。缺少时安装器会提示；安装器不会自动下载该运行时。
 
-[下载 XTools 0.2.0 安装器](https://github.com/0Antique/XTools/releases/download/v0.2.0/XTools_Setup.exe)，或查看 [Release 页面](https://github.com/0Antique/XTools/releases/tag/v0.2.0)。附件只有 `XTools_Setup.exe`，约 2.66 MiB，下载后直接运行。正式附件已核对 SHA256 并完成隔离安装/卸载检查。
+## 日常使用
 
-最低 Windows 10 版本为 1703，因为 Per-Monitor DPI Awareness V2 使用的 [SetProcessDpiAwarenessContext API](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setprocessdpiawarenesscontext) 从该版本起可用。安装器检查系统版本和 build，阻止早期 Windows 10 安装。
+### 找应用
 
-系统需要已安装 **Microsoft Edge WebView2 Runtime**。安装程序会检查此条件；缺少运行时会给出提示并停止，**不会联网下载**。需预先准备 WebView2 时，可使用 Microsoft 提供的离线安装程序。
+按 `Alt + Space`，输入名称、拼音或首字母，例如 `微信`、`weixin`、`wx`。使用方向键选中结果，按 `Enter` 打开，也可以直接点击卡片。
 
-运行 `XTools_Setup.exe`，选择安装目录，例如 `D:\Applications\XTools`，然后选择桌面快捷方式和开机启动选项。默认安装在当前用户目录，无需管理员权限；自选目录必须可写。卸载保留 `%APPDATA%\XTools` 中的个人数据。
+### 找回剪贴板内容
 
-启动后 XTools 隐藏并驻留托盘：
+打开「剪贴板」，搜索或选择一条历史，按 `Enter` 或点击复制。然后回到目标应用，用 `Ctrl + V` 粘贴。重要记录可以点星标收藏。
 
-- `Alt + Space` 显示/隐藏 Launcher，`Esc` 隐藏；`↑`、`↓`、`←`、`→` 选择结果，`Enter` 执行。
-- 输入 `微信`、`weixin` 或 `wx` 搜索已发现的微信应用；输入 `cb`、`picker`、`rn`、`settings` 打开内置工具。
-- 在剪贴板历史按 `Enter` 只重新复制所选内容并隐藏 XTools，由用户自行粘贴。
-- 右上角图钉开启悬浮后窗口置顶，点击外部继续显示；未悬浮时点击外部隐藏。
-- 在资源管理器选中文件后按 `Alt + Space`，打开批量重命名即可带入选中项，新批次会替换原列表并重置规则；手动添加和拖入仍追加。
-- 取色成功后使用 Windows 原生短时通知显示 HEX；系统勿扰或关闭通知时遵守系统设置。
-- 每次呼出都放在当前主显示器工作区。
-- 关闭窗口只隐藏；使用托盘的“退出 XTools”退出进程。`xtools.exe --quit` 用于安装/卸载等维护操作。
+默认保留最近 100 条普通历史，收藏单独保留；历史数量可在设置中调整。
 
-## 开发与构建
+### 取一个颜色
 
-准备 Windows x64 环境：Node.js 22.12 或以上、Rust MSVC 工具链（项目最低版本 1.90）、Cargo/rustfmt、Visual Studio C++ 桌面开发工具及 Windows SDK，以及 WebView2 Runtime。第一次获取 npm/Cargo 依赖和构建工具可能需要网络；这与安装后离线运行分开。
+打开「屏幕取色」，移动鼠标查看像素放大镜。**左键**复制 `#RRGGBB`，**右键或 Esc** 取消。复制成功后，Windows 系统通知会显示所选 HEX。
 
-```powershell
-npm ci
-npm run tauri dev
-```
+### 批量改名
 
-检查前端、运行 Rust 核心测试、检查格式并生成安装包：
+在资源管理器中选中文件，按 `Alt + Space`，打开「批量重命名」即可带入选中项；也可以手动添加或拖入文件、文件夹。
 
-```powershell
-npm run check
-npm test
-npm run build
-cargo test --manifest-path src-tauri/Cargo.toml
-cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check
-npm run tauri build
-```
+调整规则，检查新名称预览，再点击「执行重命名」。需要恢复时，点击「撤销上一次」。工具只修改所选对象的名称，并保留文件扩展名。
 
-NSIS 默认构建输出为 `src-tauri/target/release/bundle/nsis/XTools_0.2.0_x64-setup.exe`，Release 附件统一命名为 `XTools_Setup.exe`，不包含 WebView2 Runtime。
+> 从资源管理器带入新批次会替换列表并重置规则；手动添加和拖入会追加到当前列表。
 
-此工作区可选使用便携构建工具。存在本机 `.tools` 时，先在 PowerShell 执行：
+### 设置与悬浮
 
-```powershell
-. .\scripts\enter-build-env.ps1
-```
+右上角的 **「设置」** 位于图钉左侧，可以修改快捷键、开机启动、历史数量和最近使用显示。
 
-`.tools` 和构建输出不进入 Git；该脚本只加载已有工具的环境变量，不安装依赖。使用标准安装的工具链时无需执行。`npm run dev` 是浏览器前端预览；系统功能需通过 `npm run tauri dev` 验证。
+点击 **图钉** 开启悬浮，窗口会保持置顶；取消悬浮后，点击窗口外部即可隐藏。关闭按钮用于隐藏窗口；需要退出时，在托盘菜单中选择「退出 XTools」。
 
-调试版启动不会修改 Windows 开机启动项；在设置页保存或切换开机启动时仍会即时修改当前用户的 XTools 启动项。发布版按保存的设置初始化开机启动。
+| 快捷键 | 操作 |
+| --- | --- |
+| `Alt + Space` | 显示 / 隐藏 XTools |
+| `↑` `↓` `←` `→` | 选择应用或工具；搜索框编辑文字时，左右键用于移动光标 |
+| `Enter` | 打开所选应用、工具，或重新复制所选历史 |
+| `Esc` | 隐藏窗口，或取消取色 |
 
-## 本地数据
+## 数据留在你的电脑
 
-安装目录和数据目录分离，数据均保存在 `%APPDATA%\XTools`：
+XTools 无需登录，主要功能可离线使用。设置、历史、收藏和图片保存在 `%APPDATA%\XTools`，便于自行备份。卸载程序会保留这些个人数据。
 
-```text
-XTools/
-├── config.json                 快捷键、开机启动、历史限额、最近使用开关
-├── data/xtools.db              应用索引、使用记录、剪贴板元数据、重命名历史
-├── clipboard/images/           剪贴板图片 PNG
-├── cache/icons/                应用原始图标 PNG 缓存
-└── logs/                       本地警告和错误日志
-```
+## 反馈与更多说明
 
-文本和路径历史存入 SQLite，图片保存在独立文件中；文件/文件夹历史只保存路径，不复制文件内容。启动先读取应用缓存，再后台刷新；扫描失败保留旧缓存。
+- 遇到问题或有功能建议？[提交 Issue](https://github.com/0Antique/XTools/issues)，附上版本、系统和复现步骤。
+- 快捷键被其他软件占用时，可以从托盘打开设置，更换快捷键。
+- [版本更新](https://github.com/0Antique/XTools/releases) · [开发与构建](docs/DEVELOPMENT.md) · [版本验收记录](docs/ACCEPTANCE.md)
 
-## 验证与版本控制
+## Star 趋势
 
-Rust 核心测试、前端类型检查和生产构建已通过，并已生成 NSIS 安装包。本机原生扫描发现 **95 个应用并提取 95 个图标**，其中 31 个 UWP 应用；2000 应用模拟索引的 Debug 搜索平均约 **1.25 ms/次**。这些数据不代替 Windows 10/11、混合 DPI、多显示器、完整原生交互与资源占用验收。
+如果 XTools 帮你省下了一点时间，欢迎点一个 ⭐ Star。
 
-完整操作步骤和未完成的验证项见 [docs/ACCEPTANCE.md](docs/ACCEPTANCE.md)。仓库为 [0Antique/XTools](https://github.com/0Antique/XTools)，本次开发分支为 `codex/xtools-v2`。
+[![GitHub Stars](https://img.shields.io/github/stars/0Antique/XTools?style=social)](https://github.com/0Antique/XTools/stargazers)
+
+<a href="https://www.star-history.com/?repos=0Antique%2FXTools&amp;type=date">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=0Antique/XTools&amp;type=Date&amp;theme=dark" />
+    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=0Antique/XTools&amp;type=Date" />
+    <img src="https://api.star-history.com/svg?repos=0Antique/XTools&amp;type=Date" alt="XTools Star 数量趋势" width="760" />
+  </picture>
+</a>
+
+趋势图由 [Star History](https://www.star-history.com/) 动态提供，随服务数据更新；GitHub 图片缓存可能使显示稍有延迟。点击图表可查看详细趋势。
+
+## ☕ 赞赏支持
+
+如果你愿意支持 XTools 的持续维护，可以请作者喝杯咖啡。感谢每一份支持。
+
+<table>
+  <tr>
+    <th align="center">微信赞赏</th>
+    <th align="center">支付宝赞赏</th>
+  </tr>
+  <tr>
+    <td align="center"><a href="docs/assets/wechat-pay.jpg"><img src="docs/assets/wechat-pay.jpg" alt="微信赞赏二维码，点击查看原图" width="260" /></a></td>
+    <td align="center"><a href="docs/assets/alipay.jpg"><img src="docs/assets/alipay.jpg" alt="支付宝赞赏二维码，点击查看原图" width="260" /></a></td>
+  </tr>
+</table>
+
+使用对应 App 扫码，或点击图片查看原图。
